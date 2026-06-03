@@ -1,0 +1,2549 @@
+<!DOCTYPE html>
+<html lang="sv" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CardTrack — Terminal för samlarkort</title>
+<meta name="description" content="CardTrack — personlig Bloomberg Terminal för kortsamlare. Prisjämförelse, portfölj, smart köp.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+/* ============================================================
+   CardTrack — Design tokens
+   "Trading terminal" aesthetic: deep near-black, gold = value
+   ============================================================ */
+:root{
+  --bg:#0a0b10; --surface:#13151d; --surface-2:#191c26; --surface-3:#20242f;
+  --border:#272b38; --border-soft:#1e222d;
+  --text:#e9ebf2; --text-dim:#9398a8; --text-faint:#5c6172;
+  --primary:#f5c451; --primary-dim:#b8902f; --primary-glow:rgba(245,196,81,.18);
+  --gain:#43d39e; --gain-dim:rgba(67,211,158,.14);
+  --loss:#ff5f70; --loss-dim:rgba(255,95,112,.14);
+  --info:#5b9dff;
+  --radius:14px; --radius-sm:9px; --radius-lg:20px;
+  --shadow:0 18px 50px -20px rgba(0,0,0,.7); --shadow-soft:0 8px 28px -16px rgba(0,0,0,.6);
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --display:'Syne',system-ui,sans-serif;
+  --body:'DM Sans',system-ui,sans-serif;
+  --sidebar-w:248px;
+}
+[data-theme="light"]{
+  --bg:#f4f2ec; --surface:#ffffff; --surface-2:#f7f5ef; --surface-3:#efece4;
+  --border:#ddd8cc; --border-soft:#e7e3d8;
+  --text:#1a1c22; --text-dim:#5d626f; --text-faint:#9a9eaa;
+  --primary:#b8860b; --primary-dim:#9a7209; --primary-glow:rgba(184,134,11,.12);
+  --gain:#1a9e6e; --gain-dim:rgba(26,158,110,.12);
+  --loss:#d63a4a; --loss-dim:rgba(214,58,74,.10);
+  --info:#2f6fd8;
+  --shadow:0 18px 50px -24px rgba(40,35,20,.30); --shadow-soft:0 8px 24px -16px rgba(40,35,20,.25);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--body);background:var(--bg);color:var(--text);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    radial-gradient(900px 600px at 80% -10%, var(--primary-glow), transparent 60%),
+    linear-gradient(var(--border-soft) 1px,transparent 1px),
+    linear-gradient(90deg,var(--border-soft) 1px,transparent 1px);
+  background-size:auto, 46px 46px, 46px 46px; opacity:.5;
+  mask-image:radial-gradient(ellipse 120% 90% at 50% 0%,#000 30%,transparent 90%)}
+::selection{background:var(--primary);color:#0a0b10}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit;font-size:14px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.gain{color:var(--gain)} .loss{color:var(--loss)} .dim{color:var(--text-dim)} .faint{color:var(--text-faint)}
+.center{text-align:center} .right{text-align:right} .nowrap{white-space:nowrap} .hidden{display:none !important}
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:20px;border:2px solid var(--bg)}
+*::-webkit-scrollbar-thumb:hover{background:var(--border)}
+
+/* ============================ LAYOUT ============================ */
+.app{display:flex;min-height:100vh;position:relative;z-index:1}
+.sidebar{width:var(--sidebar-w);flex-shrink:0;border-right:1px solid var(--border);
+  background:linear-gradient(180deg,var(--surface),rgba(19,21,29,.4));
+  display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;height:100vh;z-index:40}
+.brand{padding:22px 22px 18px;display:flex;align-items:center;gap:11px;border-bottom:1px solid var(--border-soft)}
+.brand .logo{width:34px;height:34px;border-radius:9px;flex-shrink:0;
+  background:linear-gradient(145deg,var(--primary),var(--primary-dim));
+  display:grid;place-items:center;color:#0a0b10;font-family:var(--display);font-weight:800;font-size:18px;
+  box-shadow:0 0 0 1px rgba(245,196,81,.3), 0 8px 20px -8px var(--primary)}
+.brand h1{font-family:var(--display);font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.brand .tag{font-size:10.5px;color:var(--text-faint);letter-spacing:.14em;text-transform:uppercase;font-weight:600;margin-top:3px}
+.nav{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:2px}
+.nav-label{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-faint);font-weight:700;padding:14px 12px 6px}
+.nav a{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--radius-sm);color:var(--text-dim);
+  font-weight:500;font-size:13.5px;transition:.16s;position:relative}
+.nav a .ic{width:18px;height:18px;flex-shrink:0;opacity:.85}
+.nav a:hover{background:var(--surface-2);color:var(--text)}
+.nav a.active{background:var(--surface-2);color:var(--text)}
+.nav a.active::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:3px;
+  background:var(--primary);box-shadow:0 0 12px var(--primary)}
+.nav a .badge{margin-left:auto;font-size:10.5px;font-family:var(--mono);background:var(--surface-3);
+  color:var(--text-dim);padding:1px 7px;border-radius:20px;min-width:20px;text-align:center}
+.nav a.active .badge{background:var(--primary);color:#0a0b10;font-weight:700}
+.sidebar-foot{padding:14px;border-top:1px solid var(--border-soft);font-size:11px;color:var(--text-faint);display:flex;align-items:center;gap:8px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);flex-shrink:0}
+.dot.live{background:var(--gain);box-shadow:0 0 8px var(--gain);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+.main{flex:1;margin-left:var(--sidebar-w);min-width:0}
+.topbar{position:sticky;top:0;z-index:30;backdrop-filter:blur(14px);
+  background:color-mix(in srgb,var(--bg) 82%,transparent);
+  border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:16px}
+.topbar .mtoggle{display:none}
+.page-title{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:-.02em}
+.page-sub{font-size:12.5px;color:var(--text-dim);margin-top:1px}
+.topbar-actions{margin-left:auto;display:flex;align-items:center;gap:9px}
+.ticker{display:flex;gap:18px;align-items:center;font-family:var(--mono);font-size:12px;
+  padding:7px 14px;border:1px solid var(--border);border-radius:30px;background:var(--surface);overflow:hidden;max-width:430px}
+.ticker .ti{display:flex;gap:6px;align-items:center;white-space:nowrap}
+.ticker .ti b{color:var(--text);font-weight:600}
+.content{padding:26px 28px 70px;max-width:1320px}
+.page{display:none;animation:fade .35s ease}
+.page.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ============================ BUTTONS ============================ */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:var(--radius-sm);
+  font-weight:600;font-size:13px;transition:.16s;border:1px solid var(--border);background:var(--surface-2);color:var(--text)}
+.btn:hover{background:var(--surface-3);transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn.primary{background:linear-gradient(145deg,var(--primary),var(--primary-dim));color:#0a0b10;border-color:transparent;
+  box-shadow:0 8px 22px -10px var(--primary)}
+.btn.primary:hover{box-shadow:0 12px 28px -10px var(--primary)}
+.btn.ghost{background:transparent}
+.btn.sm{padding:6px 11px;font-size:12px}
+.btn.icon{padding:9px;width:38px;height:38px;justify-content:center}
+.btn.danger{color:var(--loss);border-color:transparent;background:var(--loss-dim)}
+.btn.danger:hover{background:var(--loss)}
+.btn .ic{width:16px;height:16px}
+
+/* ============================ CARDS / GRID ============================ */
+.grid{display:grid;gap:16px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.card{background:linear-gradient(160deg,var(--surface),var(--surface-2));border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px;position:relative;transition:.2s}
+.card.hover:hover{border-color:var(--border);transform:translateY(-2px);box-shadow:var(--shadow-soft)}
+.kpi .label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);font-weight:600}
+.kpi .val{font-family:var(--mono);font-size:27px;font-weight:600;letter-spacing:-.02em;margin-top:8px;line-height:1}
+.kpi .sub{font-size:12px;margin-top:8px;display:flex;align-items:center;gap:6px}
+.kpi .ic-wrap{position:absolute;top:16px;right:16px;width:36px;height:36px;border-radius:10px;
+  background:var(--surface-3);display:grid;place-items:center;color:var(--primary)}
+.kpi .ic-wrap .ic{width:18px;height:18px}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:30px;font-size:11.5px;font-weight:600;font-family:var(--mono)}
+.pill.up{background:var(--gain-dim);color:var(--gain)}
+.pill.down{background:var(--loss-dim);color:var(--loss)}
+.pill.flat{background:var(--surface-3);color:var(--text-dim)}
+
+.section-head{display:flex;align-items:center;gap:12px;margin:30px 0 14px}
+.section-head h2{font-family:var(--display);font-size:18px;font-weight:700;letter-spacing:-.01em}
+.section-head .line{flex:1;height:1px;background:var(--border)}
+.section-head .actions{display:flex;gap:8px}
+
+/* ============================ TABLES ============================ */
+.table-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;padding:11px 14px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text-dim);font-weight:700;background:var(--surface-2);border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0}
+tbody td{padding:11px 14px;border-bottom:1px solid var(--border-soft);vertical-align:middle}
+tbody tr{transition:background .12s}
+tbody tr:hover{background:var(--surface-2)}
+tbody tr:last-child td{border-bottom:none}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.item-cell{display:flex;align-items:center;gap:11px}
+.thumb{width:42px;height:42px;border-radius:8px;object-fit:cover;background:var(--surface-3);flex-shrink:0;border:1px solid var(--border)}
+.thumb.ph{display:grid;place-items:center;color:var(--text-faint);font-size:16px}
+.item-cell .nm{font-weight:600;line-height:1.25}
+.item-cell .meta{font-size:11.5px;color:var(--text-dim);margin-top:1px}
+.cat-tag{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:30px;white-space:nowrap}
+.cat-tag .swatch{width:8px;height:8px;border-radius:50%}
+.cond{font-family:var(--mono);font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--surface-3);color:var(--text-dim)}
+.cond.graded{background:var(--primary-glow);color:var(--primary)}
+.row-actions{display:flex;gap:4px;justify-content:flex-end;opacity:0;transition:.15s}
+tbody tr:hover .row-actions{opacity:1}
+.iconbtn{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--text-dim);transition:.14s}
+.iconbtn:hover{background:var(--surface-3);color:var(--text)}
+.iconbtn.del:hover{color:var(--loss);background:var(--loss-dim)}
+.best{color:var(--primary);font-weight:700}
+.best-badge{font-size:9.5px;background:var(--primary);color:#0a0b10;padding:1px 5px;border-radius:4px;font-weight:700;margin-left:5px;letter-spacing:.04em}
+
+/* ============================ FILTERS / TOOLBAR ============================ */
+.toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:16px}
+.search{flex:1;min-width:200px;position:relative}
+.search input{width:100%;padding:9px 12px 9px 36px;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--surface);color:var(--text);transition:.15s}
+.search input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow)}
+.search .ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-faint)}
+select.fltr,input.fltr{padding:8px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);transition:.15s}
+select.fltr:focus,input.fltr:focus{outline:none;border-color:var(--primary)}
+.chip{padding:7px 13px;border-radius:30px;border:1px solid var(--border);background:var(--surface);font-size:12.5px;font-weight:600;color:var(--text-dim);transition:.15s;display:inline-flex;align-items:center;gap:7px}
+.chip:hover{color:var(--text);border-color:var(--text-faint)}
+.chip.active{background:var(--text);color:var(--bg);border-color:var(--text)}
+.chip .swatch{width:9px;height:9px;border-radius:50%}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+
+/* ============================ GALLERY VIEW ============================ */
+.view-toggle{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.view-toggle button{padding:7px 11px;background:var(--surface);color:var(--text-dim);border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;transition:.15s}
+.view-toggle button+button{border-left:1px solid var(--border)}
+.view-toggle button:hover{color:var(--text)}
+.view-toggle button.active{background:var(--text);color:var(--bg)}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:16px}
+.gcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:.16s;display:flex;flex-direction:column}
+.gcard:hover{border-color:var(--text-faint);transform:translateY(-3px);box-shadow:0 10px 26px rgba(0,0,0,.25)}
+.gcard .gimg{position:relative;aspect-ratio:3/4;background:var(--surface-3);overflow:hidden}
+.gcard .gimg img{width:100%;height:100%;object-fit:cover;display:block}
+.gcard .gimg .ph{width:100%;height:100%;display:grid;place-items:center;color:var(--text-faint)}
+.gcard .gimg .ph svg{width:34px;height:34px}
+.gcard .gqty{position:absolute;top:8px;right:8px;background:rgba(5,6,10,.74);color:#fff;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;backdrop-filter:blur(4px)}
+.gcard .gown{position:absolute;top:8px;left:8px;background:rgba(245,196,81,.92);color:#1a1400;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;display:inline-flex;align-items:center;gap:3px}
+.gcard .gown svg{width:11px;height:11px;stroke-width:2.4}
+.gcard .gbody{padding:11px 12px 13px}
+.gcard .gnm{font-weight:600;font-size:13px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.gcard .gmeta{font-size:11px;color:var(--text-dim);margin-top:3px}
+.gcard .grow{display:flex;justify-content:space-between;align-items:flex-end;margin-top:9px}
+.gcard .gval{font-weight:700;font-size:13.5px}
+
+/* ============================ PHOTO UPLOAD (form) ============================ */
+.photo-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.photo-thumb{position:relative;width:78px;height:78px;border-radius:9px;overflow:hidden;border:1px solid var(--border);background:var(--surface-3)}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-thumb .pdel{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(5,6,10,.72);color:#fff;cursor:pointer;display:grid;place-items:center;padding:0}
+.photo-thumb .pdel svg{width:12px;height:12px;stroke-width:2.6}
+.photo-add{width:78px;height:78px;border-radius:9px;border:1.5px dashed var(--border);background:var(--surface-2);color:var(--text-dim);cursor:pointer;display:grid;place-items:center;transition:.15s}
+.photo-add:hover{border-color:var(--primary);color:var(--primary)}
+.photo-add svg{width:24px;height:24px}
+.photo-uploading{opacity:.55;pointer-events:none}
+
+/* ============================ CARD DETAIL PAGE ============================ */
+.cdetail{display:grid;grid-template-columns:minmax(280px,420px) 1fr;gap:30px;align-items:start}
+@media(max-width:780px){.cdetail{grid-template-columns:1fr}}
+.cd-stage{position:sticky;top:18px}
+.cd-main{aspect-ratio:3/4;background:var(--surface-3);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;display:grid;place-items:center;cursor:zoom-in}
+.cd-main img{width:100%;height:100%;object-fit:contain;background:#0a0b10}
+.cd-main .ph{color:var(--text-faint);display:grid;place-items:center;gap:8px;font-size:13px;text-align:center;padding:20px}
+.cd-main .ph svg{width:46px;height:46px}
+.cd-thumbs{display:flex;flex-wrap:wrap;gap:9px;margin-top:13px}
+.cd-thumb{position:relative;width:60px;height:60px;border-radius:8px;overflow:hidden;border:2px solid var(--border);background:var(--surface-3);cursor:pointer;transition:.14s}
+.cd-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.cd-thumb.active{border-color:var(--primary)}
+.cd-thumb .lbl{position:absolute;bottom:0;left:0;right:0;font-size:8.5px;text-align:center;background:rgba(5,6,10,.7);color:#fff;padding:1px 0;letter-spacing:.3px}
+.cd-thumb .pdel{position:absolute;top:2px;right:2px;width:17px;height:17px;border-radius:50%;border:none;background:rgba(5,6,10,.75);color:#fff;cursor:pointer;display:grid;place-items:center;padding:0}
+.cd-thumb .pdel svg{width:10px;height:10px;stroke-width:2.8}
+
+/* ============================ IMAGE VIEWER ============================ */
+.imgviewer{position:fixed;inset:0;z-index:200;background:rgba(3,4,8,.93);display:flex;align-items:center;justify-content:center;padding:30px;opacity:0;pointer-events:none;transition:.18s}
+.imgviewer.open{opacity:1;pointer-events:auto}
+.imgviewer img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+.imgviewer .x{position:absolute;top:18px;right:20px;width:42px;height:42px;border-radius:50%;border:none;background:rgba(255,255,255,.12);color:#fff;cursor:pointer;display:grid;place-items:center}
+.imgviewer .x svg{width:22px;height:22px}
+
+/* ============================ FORMS / MODAL ============================ */
+.overlay{position:fixed;inset:0;z-index:100;background:rgba(5,6,10,.66);backdrop-filter:blur(5px);
+  display:flex;align-items:flex-start;justify-content:center;padding:40px 18px;overflow-y:auto;opacity:0;pointer-events:none;transition:.2s}
+.overlay.open{opacity:1;pointer-events:auto}
+.modal{width:100%;max-width:640px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow);transform:translateY(14px) scale(.99);transition:.22s;margin:auto}
+.modal.wide{max-width:880px}
+.overlay.open .modal{transform:none}
+.modal-head{padding:20px 24px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:12px}
+.modal-head h3{font-family:var(--display);font-size:19px;font-weight:700}
+.modal-head .x{margin-left:auto;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--text-dim)}
+.modal-head .x:hover{background:var(--surface-3);color:var(--text)}
+.modal-body{padding:22px 24px;max-height:68vh;overflow-y:auto}
+.modal-foot{padding:16px 24px;border-top:1px solid var(--border-soft);display:flex;gap:9px;justify-content:flex-end}
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld.full{grid-column:1/-1}
+.fld label{font-size:11.5px;font-weight:600;color:var(--text-dim);letter-spacing:.02em}
+.fld label .req{color:var(--primary)}
+.fld input,.fld select,.fld textarea{padding:9px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--surface-2);color:var(--text);transition:.15s;width:100%}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow)}
+.fld textarea{resize:vertical;min-height:62px}
+.fld .hint{font-size:11px;color:var(--text-faint)}
+select.mini{padding:8px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-2);color:var(--text);font-size:13px;max-width:240px}
+select.mini:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow)}
+.card textarea,.modal textarea{padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-2);color:var(--text);font-family:inherit}
+.card textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow)}
+.site-badge{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;font-weight:700;font-size:12px;font-family:var(--mono)}
+.subrow td{border-top:none!important;padding-top:0}
+.spin{display:inline-flex;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lock-screen{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:var(--bg);padding:24px}
+.lock-screen.open{display:flex}
+.lock-card{width:100%;max-width:380px;text-align:center}
+.lock-card .lk{width:54px;height:54px;border-radius:14px;background:var(--primary-glow);color:var(--primary);display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+.lock-card h2{font-family:var(--display);font-size:24px;margin-bottom:6px}
+.lock-card input{width:100%;text-align:center;letter-spacing:.2em;font-size:18px;padding:13px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-2);color:var(--text);margin:18px 0}
+.lock-card input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow)}
+.field-row{display:flex;gap:9px}
+.field-row>*{flex:1}
+
+/* ============================ MISC ============================ */
+.empty{text-align:center;padding:54px 20px;color:var(--text-dim)}
+.empty .big{font-size:40px;margin-bottom:10px;opacity:.5}
+.empty h3{font-family:var(--display);font-size:17px;color:var(--text);margin-bottom:6px}
+.empty p{font-size:13px;max-width:340px;margin:0 auto 16px}
+.bar{height:7px;border-radius:6px;background:var(--surface-3);overflow:hidden}
+.bar>span{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--primary-dim),var(--primary))}
+.chart-box{position:relative;height:300px}
+.chart-box.sm{height:200px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.three-col{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.tag{font-size:10.5px;padding:1px 8px;border-radius:20px;background:var(--surface-3);color:var(--text-dim);font-weight:500}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);z-index:200;
+  background:var(--surface-3);border:1px solid var(--border);padding:12px 18px;border-radius:30px;font-weight:600;font-size:13px;
+  box-shadow:var(--shadow);opacity:0;transition:.25s;display:flex;align-items:center;gap:9px;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.toast .dot{width:8px;height:8px}
+.toast.ok .dot{background:var(--gain);box-shadow:0 0 8px var(--gain)}
+.toast.warn .dot{background:var(--primary)}
+.toast.err .dot{background:var(--loss)}
+.scorebar{display:flex;align-items:center;gap:8px}
+.scorebar .track{flex:1;height:6px;border-radius:6px;background:var(--surface-3);overflow:hidden;min-width:54px}
+.scorebar .track>span{display:block;height:100%}
+.heat{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:9px}
+.heat .cell{padding:11px;border-radius:10px;border:1px solid var(--border)}
+.heat .cell .s{font-size:12px;font-weight:600}
+.heat .cell .v{font-family:var(--mono);font-size:15px;font-weight:600;margin-top:3px}
+.rec-scenario{border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;transition:.18s}
+.rec-scenario.best{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary),0 0 30px -10px var(--primary)}
+.rec-scenario .rh{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.rec-scenario .rh .ttl{font-weight:700;font-family:var(--display);font-size:15px}
+.rec-scenario .rh .tot{margin-left:auto;font-family:var(--mono);font-size:18px;font-weight:700}
+.rec-leg{display:flex;flex-direction:column;gap:7px}
+.rec-leg .legrow{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:7px 10px;border-radius:8px;background:var(--surface-2)}
+.rec-leg .legrow .sname{font-weight:600;display:flex;align-items:center;gap:7px}
+.rec-leg .legrow .sitems{color:var(--text-dim);font-size:11.5px;margin-left:auto}
+.note-banner{background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--primary);
+  border-radius:8px;padding:11px 14px;font-size:12.5px;color:var(--text-dim);display:flex;gap:9px;align-items:flex-start;margin:10px 0}
+.note-banner.warn{border-left-color:var(--loss)}
+.checkrow{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;transition:.14s;background:var(--surface)}
+.checkrow:hover{background:var(--surface-2)}
+.checkrow.sel{border-color:var(--primary);background:var(--primary-glow)}
+.checkrow input{width:17px;height:17px;accent-color:var(--primary)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px}
+.legend .li{display:flex;align-items:center;gap:6px;color:var(--text-dim)}
+.legend .li .swatch{width:11px;height:11px;border-radius:3px}
+.divider{height:1px;background:var(--border-soft);margin:18px 0}
+kbd{font-family:var(--mono);font-size:11px;background:var(--surface-3);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
+
+/* ============================ RESPONSIVE ============================ */
+@media(max-width:980px){
+  .two-col,.three-col{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:1fr}
+}
+@media(max-width:820px){
+  .sidebar{transform:translateX(-100%);transition:transform .25s;box-shadow:var(--shadow)}
+  .sidebar.open{transform:none}
+  .main{margin-left:0}
+  .topbar .mtoggle{display:grid}
+  .content{padding:18px 16px 60px}
+  .topbar{padding:12px 16px}
+  .ticker{display:none}
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:35;opacity:0;pointer-events:none;transition:.2s}
+  .scrim.open{opacity:1;pointer-events:auto}
+}
+/* katalog-autocomplete */
+.ta-wrap{position:relative}
+.ta-results{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:60;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);max-height:300px;overflow:auto;box-shadow:0 18px 44px -12px rgba(0,0,0,.55);display:none}
+.ta-results.open{display:block}
+.ta-item{display:flex;align-items:center;gap:11px;padding:8px 11px;cursor:pointer;border-bottom:1px solid var(--border-soft)}
+.ta-item:last-child{border-bottom:none}
+.ta-item:hover,.ta-item.active{background:var(--primary-glow)}
+.ta-item img{width:34px;height:47px;object-fit:contain;border-radius:4px;background:var(--surface-3);flex-shrink:0}
+.ta-item .ta-ph{width:34px;height:47px;border-radius:4px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;color:var(--text-faint);flex-shrink:0}
+.ta-item .ta-name{font-size:13px;font-weight:600;line-height:1.25}
+.ta-item .ta-sub{font-size:11px;color:var(--text-dim);margin-top:1px}
+.ta-badge{font-size:9px;font-weight:700;letter-spacing:.05em;padding:2px 5px;border-radius:4px;background:var(--surface-3);color:var(--text-dim);margin-left:auto;flex-shrink:0}
+.ta-badge.set{background:var(--primary-glow);color:var(--primary)}
+.ta-msg{padding:13px;font-size:12.5px;color:var(--text-dim);text-align:center}
+.cat-hint{font-size:11px;color:var(--text-faint);margin-top:5px;display:flex;align-items:center;gap:5px}
+.cat-hint svg{width:12px;height:12px}
+</style>
+</head>
+<body>
+<div class="scrim" id="scrim" onclick="toggleSidebar(false)"></div>
+<div class="app">
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="logo">C</div>
+      <div>
+        <h1>CardTrack</h1>
+        <div class="tag">Collector Terminal</div>
+      </div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="nav-label">Översikt</div>
+      <a data-page="dashboard" class="active">${ic('grid')}<span>Dashboard</span></a>
+      <a data-page="portfolio">${ic('trending')}<span>Portfölj</span></a>
+      <a data-page="analysis">${ic('chart')}<span>Prisanalys</span></a>
+      <div class="nav-label">Samling</div>
+      <a data-page="collection">${ic('layers')}<span>Min samling</span><span class="badge" id="nav-coll">0</span></a>
+      <a data-page="watchlist">${ic('eye')}<span>Köplista</span><span class="badge" id="nav-watch">0</span></a>
+      <a data-page="recommend">${ic('cart')}<span>Köprekommendation</span></a>
+      <div class="nav-label">Marknad & verktyg</div>
+      <a data-page="ai">${ic('spark')}<span>AI-skanner</span></a>
+      <a data-page="history">${ic('clock')}<span>Prishistorik</span></a>
+      <div class="nav-label">Konfiguration</div>
+      <a data-page="sites">${ic('store')}<span>Sajter</span><span class="badge" id="nav-sites">0</span></a>
+      <a data-page="categories">${ic('tag')}<span>Kategorier</span></a>
+      <a data-page="settings">${ic('cog')}<span>Inställningar</span></a>
+    </nav>
+    <div class="sidebar-foot">
+      <span class="dot" id="serverDot"></span>
+      <span id="serverStatus">Scraping-server: offline</span>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main">
+    <header class="topbar">
+      <button class="btn icon ghost mtoggle" onclick="toggleSidebar()">${ic('menu')}</button>
+      <div>
+        <div class="page-title" id="pageTitle">Dashboard</div>
+        <div class="page-sub" id="pageSub">Översikt över din samling och marknad</div>
+      </div>
+      <div class="topbar-actions">
+        <div class="ticker" id="ticker"></div>
+        <button class="btn icon ghost" onclick="toggleTheme()" title="Växla tema" id="themeBtn">${ic('moon')}</button>
+        <button class="btn primary" onclick="quickAdd()">${ic('plus')}<span class="nowrap">Lägg till</span></button>
+      </div>
+    </header>
+    <main class="content">
+      <section class="page active" id="page-dashboard"></section>
+      <section class="page" id="page-portfolio"></section>
+      <section class="page" id="page-analysis"></section>
+      <section class="page" id="page-collection"></section>
+      <section class="page" id="page-watchlist"></section>
+      <section class="page" id="page-recommend"></section>
+      <section class="page" id="page-ai"></section>
+      <section class="page" id="page-history"></section>
+      <section class="page" id="page-sites"></section>
+      <section class="page" id="page-categories"></section>
+      <section class="page" id="page-settings"></section>
+      <section class="page" id="page-card"></section>
+    </main>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div class="imgviewer" id="imgviewer" onclick="closeViewer()"><button class="x" title="Stäng" onclick="closeViewer()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button><img id="imgviewerImg" src="" alt=""></div>
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+<div class="lock-screen" id="lockScreen"><div class="lock-card">
+  <div class="lk"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+  <h2>CardTrack</h2>
+  <div class="dim" style="font-size:13px">Appen är låst. Ange din kod för att låsa upp.</div>
+  <input type="password" id="lockInput" inputmode="numeric" placeholder="••••••" autocomplete="current-password">
+  <button class="btn primary" style="width:100%;justify-content:center" id="lockBtn">Lås upp</button>
+  <div class="dim" id="lockErr" style="font-size:12px;margin-top:12px;color:var(--loss);min-height:16px"></div>
+</div></div>
+
+<script>
+/* ============================================================
+   CardTrack — Application logic (vanilla JS)
+   Persistence: localStorage (privacy-first, lokalt på din enhet)
+   ============================================================ */
+"use strict";
+
+/* ---------- Icons (inline SVG, stroke = currentColor) ---------- */
+const ICONS={
+  grid:'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
+  trending:'M3 17l6-6 4 4 7-7M14 8h6v6',
+  chart:'M4 20V8M10 20V4M16 20v-8M22 20H2',
+  layers:'M12 2 2 7l10 5 10-5zM2 12l10 5 10-5M2 17l10 5 10-5',
+  eye:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
+  cart:'M3 3h2l2 12h12l2-8H6M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM18 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
+  spark:'M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4zM18 14l.9 2.6L22 18l-3.1.9L18 22l-.9-3.1L14 18l3.1-1.4z',
+  clock:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2',
+  store:'M3 9l1.5-5h15L21 9M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0zM5 11v9h14v-9',
+  tag:'M3 3h8l10 10-8 8L3 11zM7 7h.01',
+  cog:'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-2.7-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 2.7-1.1V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z',
+  menu:'M3 6h18M3 12h18M3 18h18',
+  moon:'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+  sun:'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
+  plus:'M12 5v14M5 12h14',
+  search:'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
+  edit:'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z',
+  trash:'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6',
+  external:'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3',
+  x:'M18 6L6 18M6 6l12 12',
+  check:'M20 6L9 17l-5-5',
+  download:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
+  upload:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
+  refresh:'M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16',
+  alert:'M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
+  box:'M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8',
+  image:'M3 3h18v18H3zM8.5 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM21 15l-5-5L5 21',
+  bell:'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
+  target:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  fire:'M12 2s4 4 4 8a4 4 0 0 1-8 0c0-1 .5-2 .5-2S6 11 6 14a6 6 0 0 0 12 0c0-5-6-12-6-12z',
+  filter:'M3 4h18l-7 9v5l-4 2v-7z',
+  copy:'M9 9h10v10H9zM5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1',
+  camera:'M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  list:'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+  star:'M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z',
+  expand:'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7'
+};
+function ic(n){return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="'+(ICONS[n]||'')+'"/></svg>';}
+
+/* ---------- Utilities ---------- */
+const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const todayISO=()=>new Date().toISOString().slice(0,10);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function daysAgo(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10);}
+
+/* ---------- Constants ---------- */
+const CURRENCIES=['SEK','EUR','USD','GBP','JPY'];
+const CURRENCY_SYMBOL={SEK:'kr',EUR:'€',USD:'$',GBP:'£',JPY:'¥'};
+const PRODUCT_TYPES=['Enskilt kort','Elite Trainer Box','Booster Box / Display','Booster Pack','Starter / Theme Deck','Tin / Blister','Special / Premium Collection','Sealed Case','Komplett set','Promo / Exklusiv','Gift Set','Funko Pop','Övrigt'];
+const CONDITIONS=['RAW (ogradat)','Mint','Near Mint','Lightly Played','Played','PSA 10','PSA 9','PSA 8','PSA 7','PSA ≤6','BGS 10','BGS 9.5','BGS 9','CGC 10','CGC 9.5','Sealed / Förseglad'];
+const GRADED=/^(PSA|BGS|CGC)/;
+
+/* ---------- State ---------- */
+const STORAGE_KEY='cardtrack.v1';
+let state=null;
+let charts={};
+/* App-lock (lokal kryptering) — appLock.key sätts efter upplåsning */
+let appLock={enabled:false,key:null,salt:null,iter:210000};
+
+function defaultSettings(){
+  return {
+    baseCurrency:'SEK',
+    theme:'dark',
+    rates:{SEK:1,EUR:11.40,USD:10.60,GBP:13.40,JPY:0.069}, // SEK per 1 unit
+    ratesUpdated:null,
+    apiKey:'',
+    aiModel:'claude-sonnet-4-20250514',
+    serverUrl:'http://localhost:3001',
+    supabaseUrl:'',
+    supabaseKey:'',
+    vatRate:25,          // import VAT % for non-EU
+    customsFee:75,       // fast tullavgift per försändelse (SEK), uppskattning
+    customsThreshold:0   // VAT tas ut från första kronan vid import till EU
+  };
+}
+
+/* ---------- Currency engine ---------- */
+function rate(cur){return state.settings.rates[cur]||1;}
+function convert(amount,from,to){
+  if(amount==null||isNaN(amount))return 0;
+  from=from||state.settings.baseCurrency; to=to||state.settings.baseCurrency;
+  if(from===to)return amount;
+  return amount*rate(from)/rate(to);
+}
+function base(){return state.settings.baseCurrency;}
+function toBase(amount,cur){return convert(amount,cur,base());}
+function fmt(amount,cur){
+  cur=cur||base();
+  const sym=CURRENCY_SYMBOL[cur]||cur;
+  const dec=cur==='JPY'?0:(Math.abs(amount)>=1000?0:2);
+  const n=Number(amount||0).toLocaleString('sv-SE',{minimumFractionDigits:dec,maximumFractionDigits:dec});
+  return (cur==='SEK')? n+'\u00A0'+sym : sym+'\u00A0'+n;
+}
+function fmtBase(amount){return fmt(amount,base());}
+
+/* ---------- Persistence ---------- */
+function save(){try{if(appLock.key){persistEncrypted();return;}localStorage.setItem(STORAGE_KEY,JSON.stringify(state));scheduleCloudPush();}catch(e){toast('Kunde inte spara lokalt — '+e.message,'err');}}
+function load(){
+  try{const raw=localStorage.getItem(STORAGE_KEY);if(raw)return JSON.parse(raw);}catch(e){}
+  return null;
+}
+
+/* ---------- Seed data (exempeldata) ---------- */
+function seedData(){
+  const cats=[
+    {id:'pok',name:'Pokémon TCG',color:'#f0c040'},
+    {id:'lor',name:'Disney Lorcana',color:'#6f6ae6'},
+    {id:'mtg',name:'Magic: The Gathering',color:'#d4783a'},
+    {id:'ygo',name:'Yu-Gi-Oh!',color:'#b25fe0'},
+    {id:'op',name:'One Piece TCG',color:'#e0524e'},
+    {id:'fot',name:'Fotbollskort',color:'#2fb070'},
+    {id:'spt',name:'Sportkort (övrigt)',color:'#3d8bdd'},
+    {id:'fnk',name:'Funko Pop / Samlarobjekt',color:'#e25fa0'}
+  ];
+  const sites=[
+    {id:'s_cm',name:'Cardmarket',url:'https://www.cardmarket.com',currency:'EUR',country:'DE',region:'EU',defaultShipping:4.99,freeShippingThreshold:0,color:'#1f6fb2',icon:'CM',rating:5,notes:'Bäst för singlar i EU. Trustee-skydd.',discountCodes:[],memberBenefits:'Cardmarket-skydd vid köp'},
+    {id:'s_tcg',name:'TCGplayer',url:'https://www.tcgplayer.com',currency:'USD',country:'US',region:'NON_EU',defaultShipping:18,freeShippingThreshold:0,color:'#f08a24',icon:'TP',rating:4,notes:'Stort utbud USA. OBS: tull + moms tillkommer.',discountCodes:[],memberBenefits:''},
+    {id:'s_tra',name:'Tradera',url:'https://www.tradera.com',currency:'SEK',country:'SE',region:'EU',defaultShipping:59,freeShippingThreshold:0,color:'#2fb070',icon:'TR',rating:3,notes:'Svensk auktion. Varierande skick.',discountCodes:[],memberBenefits:''},
+    {id:'s_kd',name:'Kortdraken',url:'https://kortdraken.se',currency:'SEK',country:'SE',region:'EU',defaultShipping:49,freeShippingThreshold:699,color:'#c0452f',icon:'KD',rating:4,notes:'Svensk butik, snabb frakt, fri frakt över 699 kr.',discountCodes:['SOMMAR10'],memberBenefits:'Stamkundspoäng'},
+    {id:'s_pc',name:'PriceCharting',url:'https://www.pricecharting.com',currency:'USD',country:'US',region:'NON_EU',defaultShipping:0,freeShippingThreshold:0,color:'#7a51c0',icon:'PC',rating:4,notes:'Referensindex för marknadspriser (gradat).',discountCodes:[],memberBenefits:''}
+  ];
+  const P=(siteId,price,shipping,currency,url)=>({siteId,price,shipping:shipping==null?null:shipping,currency,url,updated:daysAgo(Math.floor(Math.random()*9))});
+  const items=[
+    {id:uid(),name:'Scarlet & Violet 151 — Elite Trainer Box',cat:'pok',set:'SV: 151',type:'Elite Trainer Box',condition:'Sealed / Förseglad',cert:'',qty:3,image:'',
+      notes:'Topp-ETB, kraftig efterfrågan på Zapdos-art.',tags:['investering','sealed'],
+      buyPrice:449,buyCurrency:'SEK',buyShipping:49,buyDate:daysAgo(120),seller:'Kortdraken',
+      prices:[P('s_kd',529,49,'SEK','https://kortdraken.se/151-etb'),P('s_cm',46.9,4.99,'EUR','https://www.cardmarket.com/151-etb'),P('s_tra',575,59,'SEK','https://www.tradera.com/151-etb')]},
+    {id:uid(),name:'Charizard ex 199 — Special Illustration Rare',cat:'pok',set:'SV: Obsidian Flames',type:'Enskilt kort',condition:'PSA 10',cert:'PSA 84412209',qty:1,image:'',
+      notes:'Graderad gem mint. Långsiktig hold.',tags:['chase','graded'],
+      buyPrice:1850,buyCurrency:'SEK',buyShipping:0,buyDate:daysAgo(210),seller:'Tradera',
+      prices:[P('s_cm',210,4.99,'EUR','https://www.cardmarket.com/charizard-ex'),P('s_pc',239,0,'USD','https://www.pricecharting.com/charizard-ex'),P('s_tcg',229,18,'USD','https://www.tcgplayer.com/charizard-ex')]},
+    {id:uid(),name:'Pokémon 151 — Booster Box (Japansk)',cat:'pok',set:'SV2a (JP)',type:'Booster Box / Display',condition:'Sealed / Förseglad',cert:'',qty:1,image:'',
+      notes:'Japan exclusive. 20 paket.',tags:['japan','sealed'],
+      buyPrice:799,buyCurrency:'SEK',buyShipping:79,buyDate:daysAgo(95),seller:'Cardmarket',
+      prices:[P('s_cm',74.5,9.99,'EUR','https://www.cardmarket.com/151-jp-box'),P('s_kd',null,49,'SEK',''),P('s_tcg',92,22,'USD','https://www.tcgplayer.com/151-jp-box')]},
+    {id:uid(),name:'Lorcana — The First Chapter Booster Box',cat:'lor',set:'The First Chapter',type:'Booster Box / Display',condition:'Sealed / Förseglad',cert:'',qty:1,image:'',
+      notes:'Första vågen, utgått ur tryck — stigande.',tags:['oop','investering'],
+      buyPrice:1200,buyCurrency:'SEK',buyShipping:49,buyDate:daysAgo(160),seller:'Kortdraken',
+      prices:[P('s_cm',139,4.99,'EUR','https://www.cardmarket.com/lorcana-tfc-box'),P('s_tra',1690,59,'SEK','https://www.tradera.com/lorcana-tfc')]},
+    {id:uid(),name:'Elsa — Snow Queen (Enchanted)',cat:'lor',set:'The First Chapter',type:'Enskilt kort',condition:'Near Mint',cert:'',qty:2,image:'',
+      notes:'Enchanted rare, eftertraktad.',tags:['enchanted'],
+      buyPrice:62,buyCurrency:'EUR',buyShipping:4.99,buyDate:daysAgo(140),seller:'Cardmarket',
+      prices:[P('s_cm',71,4.99,'EUR','https://www.cardmarket.com/elsa-snow-queen'),P('s_tcg',83,18,'USD','https://www.tcgplayer.com/elsa-snow-queen')]},
+    {id:uid(),name:'Panini Prizm Premier League — Hobby Box',cat:'fot',set:'Prizm EPL 2023-24',type:'Booster Box / Display',condition:'Sealed / Förseglad',cert:'',qty:1,image:'',
+      notes:'Hobby, 12 paket. Haaland/Saka rookies.',tags:['hobby','epl'],
+      buyPrice:159,buyCurrency:'EUR',buyShipping:9.99,buyDate:daysAgo(75),seller:'Cardmarket',
+      prices:[P('s_cm',172,9.99,'EUR','https://www.cardmarket.com/prizm-epl-box'),P('s_kd',1990,49,'SEK','https://kortdraken.se/prizm-epl')]},
+    {id:uid(),name:'Erling Haaland — Topps Chrome UCL Refractor',cat:'fot',set:'Topps Chrome UCL 2022-23',type:'Enskilt kort',condition:'PSA 9',cert:'PSA 77120044',qty:1,image:'',
+      notes:'Refractor /, stigande efter säsong.',tags:['graded','chrome'],
+      buyPrice:890,buyCurrency:'SEK',buyShipping:0,buyDate:daysAgo(180),seller:'Tradera',
+      prices:[P('s_tra',1150,59,'SEK','https://www.tradera.com/haaland-ucl'),P('s_tcg',119,18,'USD','https://www.tcgplayer.com/haaland-ucl')]},
+    {id:uid(),name:'Commander Masters — Collector Booster Box',cat:'mtg',set:'Commander Masters',type:'Booster Box / Display',condition:'Sealed / Förseglad',cert:'',qty:1,image:'',
+      notes:'Collector booster, 4 paket.',tags:['collector','sealed'],
+      buyPrice:289,buyCurrency:'EUR',buyShipping:4.99,buyDate:daysAgo(60),seller:'Cardmarket',
+      prices:[P('s_cm',265,4.99,'EUR','https://www.cardmarket.com/cmm-collector-box'),P('s_tcg',289,18,'USD','https://www.tcgplayer.com/cmm-collector-box')]}
+  ];
+  const watch=[
+    {id:uid(),name:'Prismatic Evolutions — Elite Trainer Box',cat:'pok',type:'Elite Trainer Box',targetPrice:399,targetCurrency:'SEK',notes:'Vänta på restock — peakar inför jul.',preorder:false,
+      prices:[P('s_kd',379,49,'SEK','https://kortdraken.se/prismatic-etb'),P('s_cm',39.9,4.99,'EUR','https://www.cardmarket.com/prismatic-etb')]},
+    {id:uid(),name:'Lorcana — Azurite Sea Booster Box',cat:'lor',type:'Booster Box / Display',targetPrice:90,targetCurrency:'EUR',notes:'Förbeställning öppen.',preorder:true,
+      prices:[P('s_cm',104,4.99,'EUR','https://www.cardmarket.com/azurite-sea-box')]},
+    {id:uid(),name:'Kylian Mbappé — Prizm World Cup PSA 10',cat:'fot',type:'Enskilt kort',targetPrice:1500,targetCurrency:'SEK',notes:'Bevaka auktioner.',preorder:false,
+      prices:[P('s_tra',1850,59,'SEK','https://www.tradera.com/mbappe-prizm')]}
+  ];
+  const st={categories:cats,sites:sites,items:items,watch:watch,priceHistory:[],snapshots:[],settings:defaultSettings(),savedViews:[]};
+  // Build synthetic price history + portfolio snapshots so charts have data
+  buildSeedHistory(st);
+  buildSeedSnapshots(st);
+  return st;
+}
+
+function buildSeedHistory(st){
+  // generate ~16 weeks of price points for each item's best site
+  st.items.forEach(it=>{
+    it.prices.filter(p=>p.price!=null).forEach((p,idx)=>{
+      if(idx>1)return; // keep first 2 sites per item for history
+      const weeks=16, end=p.price;
+      let v=end*(0.78+Math.random()*0.12); // start lower, trend up
+      for(let w=weeks;w>=0;w--){
+        v=v*(1+(Math.random()-0.42)*0.05);
+        if(w===0)v=end;
+        st.priceHistory.push({id:uid(),itemRef:it.id,name:it.name,siteId:p.siteId,
+          price:Math.round(v*100)/100,currency:p.currency,date:daysAgo(w*7),auto:false});
+      }
+    });
+  });
+}
+function buildSeedSnapshots(st){
+  const cur=portfolioMarketValueRaw(st);
+  for(let m=11;m>=0;m--){
+    const factor=0.72+ (11-m)/11*0.28; // grow toward current
+    const noise=1+(Math.random()-0.5)*0.05;
+    st.snapshots.push({date:daysAgo(m*30),value:Math.round(cur*factor*noise)});
+  }
+  st.snapshots[st.snapshots.length-1].value=Math.round(cur);
+}
+
+/* ============================================================
+   ANALYTICS — värdering, vinst/förlust, bästa pris, köp-poäng
+   ============================================================ */
+function catById(id){return (state.categories||[]).find(c=>c.id===id);}
+function siteById(id){return (state.sites||[]).find(s=>s.id===id);}
+function itemById(id){return (state.items||[]).find(i=>i.id===id);}
+function catColor(id){const c=catById(id);return c?c.color:'#888';}
+function catName(id){const c=catById(id);return c?c.name:'—';}
+
+// valid price entries (price not null) for an item/watch object
+function validPrices(obj){return (obj.prices||[]).filter(p=>p.price!=null&&!isNaN(p.price));}
+
+// total landed cost in base for one unit at a given price entry (price+shipping+est. customs)
+function entryTotalBase(p,opts){
+  opts=opts||{};
+  const site=siteById(p.siteId);
+  const cur=p.currency||(site?site.currency:base());
+  let goods=toBase(p.price,cur);
+  let ship=opts.includeShipping===false?0:toBase(p.shipping==null?(site?site.defaultShipping:0):p.shipping,cur);
+  let total=goods+ship;
+  if(opts.includeCustoms!==false && site && site.region==='NON_EU'){
+    const vat=(state.settings.vatRate/100)*(goods+ship);
+    total+=vat+Number(state.settings.customsFee||0);
+  }
+  return total;
+}
+// lowest unit market price (goods only) in base
+function unitMarketBase(it){
+  const v=validPrices(it);if(!v.length)return null;
+  return Math.min(...v.map(p=>toBase(p.price,p.currency||(siteById(p.siteId)||{}).currency)));
+}
+// best entry to BUY (lowest landed total incl shipping+customs)
+function bestBuyEntry(obj){
+  const v=validPrices(obj);if(!v.length)return null;
+  let best=null,bestTot=Infinity;
+  v.forEach(p=>{const t=entryTotalBase(p);if(t<bestTot){bestTot=t;best=p;}});
+  return best?{entry:best,totalBase:bestTot}:null;
+}
+function itemCostBase(it){return toBase((it.buyPrice||0),it.buyCurrency)*(it.qty||1)+toBase((it.buyShipping||0),it.buyCurrency);}
+function itemMarketBase(it){const u=unitMarketBase(it);return u==null?null:u*(it.qty||1);}
+function itemProfitBase(it){const m=itemMarketBase(it);if(m==null)return null;return m-itemCostBase(it);}
+
+function portfolioMarketValueRaw(st){
+  return (st.items||[]).reduce((s,it)=>{
+    const v=(it.prices||[]).filter(p=>p.price!=null);
+    if(!v.length)return s;
+    const u=Math.min(...v.map(p=>{
+      const site=(st.sites||[]).find(x=>x.id===p.siteId);
+      const cur=p.currency||(site?site.currency:'SEK');
+      return p.price*(st.settings.rates[cur]||1)/(st.settings.rates[st.settings.baseCurrency]||1);
+    }));
+    return s+u*(it.qty||1);
+  },0);
+}
+function portfolioStats(){
+  let market=0,cost=0,units=0,priced=0,unpriced=0;
+  state.items.forEach(it=>{
+    cost+=itemCostBase(it);
+    units+=(it.qty||1);
+    const m=itemMarketBase(it);
+    if(m==null){unpriced++;}else{market+=m;priced++;}
+  });
+  const profit=market-cost;
+  const pct=cost>0?(profit/cost*100):0;
+  return {market,cost,profit,pct,units,count:state.items.length,priced,unpriced};
+}
+function categoryBreakdown(){
+  const map={};
+  state.items.forEach(it=>{
+    const m=itemMarketBase(it); if(m==null)return;
+    map[it.cat]=map[it.cat]||{market:0,cost:0,count:0};
+    map[it.cat].market+=m; map[it.cat].cost+=itemCostBase(it); map[it.cat].count++;
+  });
+  return Object.entries(map).map(([cat,d])=>({cat,...d,profit:d.market-d.cost})).sort((a,b)=>b.market-a.market);
+}
+
+// price history helpers
+function historyFor(itemRef,siteId){
+  return state.priceHistory.filter(h=>h.itemRef===itemRef && (!siteId||h.siteId===siteId))
+    .sort((a,b)=>a.date.localeCompare(b.date));
+}
+function buyScore(obj){
+  // 0..100: hur bra är nuvarande bästa pris vs historiskt spann (högre = bättre köp)
+  const best=bestBuyEntry(obj); if(!best)return null;
+  const ref=obj.itemRef||obj.id;
+  const hist=state.priceHistory.filter(h=>h.itemRef===ref).map(h=>toBase(h.price,h.currency));
+  const cur=toBase(best.entry.price,best.entry.currency);
+  if(hist.length<3)return null;
+  const lo=Math.min(...hist),hi=Math.max(...hist);
+  if(hi<=lo)return 50;
+  return clamp(Math.round((hi-cur)/(hi-lo)*100),0,100);
+}
+function scoreColor(s){return s>=70?'var(--gain)':s>=40?'var(--primary)':'var(--loss)';}
+function scoreLabel(s){return s>=80?'Utmärkt köp':s>=65?'Bra köp':s>=45?'Okej':s>=25?'Avvakta':'Dyrt nu';}
+
+/* ============================================================
+   APP SHELL — navigation, tema, modal, toast
+   ============================================================ */
+const NAV=[
+  {grp:'Översikt'},
+  {id:'dashboard',ic:'grid',label:'Dashboard',title:'Dashboard',sub:'Översikt över din samling och marknad'},
+  {id:'portfolio',ic:'trending',label:'Portfölj',title:'Portfölj',sub:'Värdeutveckling, vinst/förlust och kategorianalys'},
+  {id:'analysis',ic:'chart',label:'Prisanalys',title:'Prisanalys',sub:'Prishistorik, marknadstrender och köpfönster'},
+  {grp:'Samling'},
+  {id:'collection',ic:'layers',label:'Min samling',title:'Min samling',sub:'Hela ditt inventarie med kraftfulla filter',badge:'coll'},
+  {id:'watchlist',ic:'eye',label:'Köplista',title:'Köplista & bevakningar',sub:'Wishlist med målpriser och köp-poäng',badge:'watch'},
+  {id:'recommend',ic:'cart',label:'Köprekommendation',title:'Smart köprekommendation',sub:'Välj objekt — få optimal kombination inkl. frakt'},
+  {grp:'Marknad & verktyg'},
+  {id:'ai',ic:'spark',label:'AI-skanner',title:'AI-skanner',sub:'Prisskanning & analys via Claude API'},
+  {id:'history',ic:'clock',label:'Prishistorik',title:'Prishistorik',sub:'Full logg över alla prisändringar'},
+  {grp:'Konfiguration'},
+  {id:'sites',ic:'store',label:'Sajter',title:'Sajter',sub:'Hantera kortbutiker, frakt och trösklar',badge:'sites'},
+  {id:'categories',ic:'tag',label:'Kategorier',title:'Kategorier',sub:'Hantera TCG-typer och färgkodning'},
+  {id:'settings',ic:'cog',label:'Inställningar',title:'Inställningar',sub:'Valutor, växelkurser, API-nycklar, backup'}
+];
+let currentPage='dashboard';
+
+function renderNav(){
+  const nav=$('#nav');
+  nav.innerHTML=NAV.map(n=>{
+    if(n.grp)return '<div class="nav-label">'+n.grp+'</div>';
+    const badge=n.badge?'<span class="badge" id="nav-'+n.badge+'">0</span>':'';
+    return '<a data-page="'+n.id+'" class="'+(n.id===currentPage?'active':'')+'">'+ic(n.ic)+'<span>'+n.label+'</span>'+badge+'</a>';
+  }).join('');
+  $$('#nav a').forEach(a=>a.onclick=()=>navigate(a.dataset.page));
+}
+function updateBadges(){
+  const set=(id,v)=>{const e=$('#nav-'+id);if(e)e.textContent=v;};
+  set('coll',state.items.length); set('watch',state.watch.length); set('sites',state.sites.length);
+}
+const RENDERERS={};
+function navigate(page){
+  currentPage=page;
+  $$('.page').forEach(p=>p.classList.remove('active'));
+  const sec=$('#page-'+page); if(sec)sec.classList.add('active');
+  $$('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.page===page));
+  const meta=NAV.find(n=>n.id===page)||{};
+  $('#pageTitle').textContent=meta.title||''; $('#pageSub').textContent=meta.sub||'';
+  if(RENDERERS[page])RENDERERS[page]();
+  if(window.innerWidth<=820)toggleSidebar(false);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function rerenderCurrent(){if(RENDERERS[currentPage])RENDERERS[currentPage]();updateBadges();updateTicker();}
+
+/* theme */
+function applyTheme(){
+  document.documentElement.setAttribute('data-theme',state.settings.theme);
+  $('#themeBtn').innerHTML=ic(state.settings.theme==='dark'?'sun':'moon');
+  // refresh charts for theme colors
+  Object.keys(charts).forEach(k=>{if(charts[k]){charts[k].destroy();delete charts[k];}});
+  if(RENDERERS[currentPage])RENDERERS[currentPage]();
+}
+function toggleTheme(){state.settings.theme=state.settings.theme==='dark'?'light':'dark';save();applyTheme();}
+
+/* sidebar (mobil) */
+function toggleSidebar(force){
+  const open=force==null?!$('#sidebar').classList.contains('open'):force;
+  $('#sidebar').classList.toggle('open',open);
+  $('#scrim').classList.toggle('open',open);
+}
+
+/* toast */
+let toastTimer;
+function toast(msg,kind){
+  const t=$('#toast');$('#toastMsg').textContent=msg;
+  t.className='toast show '+(kind||'ok');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+/* modal */
+let _modalCloseTimer=null;
+function openModal(html,wide){
+  if(_modalCloseTimer){clearTimeout(_modalCloseTimer);_modalCloseTimer=null;}
+  const ov=$('#overlay');
+  ov.innerHTML='<div class="modal'+(wide?' wide':'')+'">'+html+'</div>';
+  ov.classList.add('open');
+  ov.onclick=e=>{if(e.target===ov)closeModal();};
+  document.body.style.overflow='hidden';
+}
+function closeModal(){$('#overlay').classList.remove('open');document.body.style.overflow='';if(_modalCloseTimer)clearTimeout(_modalCloseTimer);_modalCloseTimer=setTimeout(()=>{$('#overlay').innerHTML='';_modalCloseTimer=null;},220);}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#imgviewer').classList.contains('open'))closeViewer();else closeModal();}});
+
+/* ticker */
+function updateTicker(){
+  const ps=portfolioStats();
+  const cb=categoryBreakdown().slice(0,3);
+  const arrow=v=>v>=0?'▲':'▼';
+  const cls=v=>v>=0?'gain':'loss';
+  let html='<div class="ti"><span class="dim">PORTF</span><b>'+fmtBase(ps.market)+'</b>'
+    +'<span class="'+cls(ps.profit)+'">'+arrow(ps.profit)+' '+ps.pct.toFixed(1)+'%</span></div>';
+  cb.forEach(c=>{const pc=c.cost>0?c.profit/c.cost*100:0;
+    html+='<div class="ti"><span style="color:'+catColor(c.cat)+'">●</span><b>'+catShort(c.cat)+'</b>'
+      +'<span class="'+cls(pc)+'">'+arrow(pc)+pc.toFixed(0)+'%</span></div>';});
+  $('#ticker').innerHTML=html;
+}
+function catShort(id){const n=catName(id);return n.split(/[\s:]/)[0].slice(0,8).toUpperCase();}
+
+/* server status */
+async function checkServer(){
+  try{
+    const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),1500);
+    const r=await fetch(state.settings.serverUrl+'/health',{signal:ctrl.signal});
+    clearTimeout(t);
+    if(r.ok){$('#serverDot').className='dot live';$('#serverStatus').textContent='Scraping-server: ansluten';return;}
+  }catch(e){}
+  $('#serverDot').className='dot';$('#serverStatus').textContent='Scraping-server: offline';
+}
+
+/* ============================================================
+   RENDER HELPERS
+   ============================================================ */
+function catTag(id){const c=catById(id);if(!c)return '<span class="cat-tag">—</span>';
+  return '<span class="cat-tag" style="background:'+hexA(c.color,.14)+';color:'+c.color+'"><span class="swatch" style="background:'+c.color+'"></span>'+esc(shortCat(c.name))+'</span>';}
+function shortCat(n){return n.replace(' TCG','').replace(': The Gathering','').replace('Disney ','').replace(' / Samlarobjekt','');}
+function condTag(c){const g=GRADED.test(c);return '<span class="cond'+(g?' graded':'')+'">'+esc(c||'—')+'</span>';}
+function itemPhotos(it){return (it&&it.photos)?it.photos:[];}
+// vald primärbild: eget foto om imgPref='photo' och foton finns, annars officiell, annars första fotot
+function primaryImage(it){
+  if(!it)return '';
+  const ph=itemPhotos(it);
+  if(it.imgPref==='photo'&&ph.length)return ph[0];
+  if(it.image)return it.image;
+  return ph.length?ph[0]:'';
+}
+function hasOwnPhoto(it){return itemPhotos(it).length>0;}
+function thumb(it){const src=primaryImage(it);
+  if(src)return '<img class="thumb" src="'+esc(src)+'" alt="" onerror="this.outerHTML=\'<div class=\\\'thumb ph\\\'>'+ic('image')+'</div>\'">';
+  return '<div class="thumb ph">'+ic('box')+'</div>';}
+function hexA(hex,a){const h=hex.replace('#','');const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return 'rgba('+r+','+g+','+b+','+a+')';}
+function pillPct(pct){const up=pct>=0;return '<span class="pill '+(up?'up':'down')+'">'+(up?'▲':'▼')+' '+Math.abs(pct).toFixed(1)+'%</span>';}
+function kpi(label,val,sub,icon){return '<div class="card kpi hover"><div class="ic-wrap">'+ic(icon)+'</div><div class="label">'+label+'</div><div class="val">'+val+'</div><div class="sub">'+sub+'</div></div>';}
+function sectionHead(title,actions){return '<div class="section-head"><h2>'+title+'</h2><div class="line"></div><div class="actions">'+(actions||'')+'</div></div>';}
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function chartTheme(){return {grid:hexA(cssVar('--text-faint')||'#5c6172',.12),text:cssVar('--text-dim')||'#999',line:cssVar('--primary')||'#f5c451'};}
+function makeChart(key,canvas,cfg){if(charts[key])charts[key].destroy();charts[key]=new Chart(canvas,cfg);}
+
+function priceRows(obj,opts){
+  opts=opts||{};
+  const entries=(obj.prices||[]).slice();
+  const valids=validPrices(obj);
+  const bestT=valids.length?Math.min(...valids.map(p=>entryTotalBase(p))):null;
+  // sort: valid by total asc, then missing
+  entries.sort((a,b)=>{const av=a.price==null,bv=b.price==null;if(av!==bv)return av?1:-1;return entryTotalBase(a)-entryTotalBase(b);});
+  return entries.map(p=>{
+    const site=siteById(p.siteId);
+    const sName=site?site.name:'Okänd sajt';
+    const sColor=site?site.color:'#888';
+    if(p.price==null){
+      return '<tr><td><span class="cat-tag" style="background:'+hexA(sColor,.14)+';color:'+sColor+'"><span class="swatch" style="background:'+sColor+'"></span>'+esc(sName)+'</span></td>'
+        +'<td colspan="3" class="faint">Inget pris angivet</td>'
+        +'<td class="right">'+(p.url?linkBtn(p.url):'<span class="faint">—</span>')+'</td></tr>';
+    }
+    const cur=p.currency||(site?site.currency:base());
+    const ship=p.shipping==null?(site?site.defaultShipping:0):p.shipping;
+    const totalBase=entryTotalBase(p);
+    const isBest=bestT!=null&&Math.abs(totalBase-bestT)<0.5;
+    const customs=site&&site.region==='NON_EU';
+    return '<tr>'
+      +'<td><span class="cat-tag" style="background:'+hexA(sColor,.14)+';color:'+sColor+'"><span class="swatch" style="background:'+sColor+'"></span>'+esc(sName)+'</span></td>'
+      +'<td class="num">'+fmt(p.price,cur)+'</td>'
+      +'<td class="num faint">'+(ship?'+ '+fmt(ship,cur):'fri')+'</td>'
+      +'<td class="num '+(isBest?'best':'')+'">'+fmtBase(totalBase)+(isBest?'<span class="best-badge">BÄST</span>':'')+(customs?'<div class="faint" style="font-size:10px">inkl. est. moms+tull</div>':'')+'</td>'
+      +'<td class="right">'+(p.url?linkBtn(p.url):'<span class="faint">—</span>')+'</td>'
+      +'</tr>';
+  }).join('');
+}
+function linkBtn(url){return '<a class="iconbtn" href="'+esc(url)+'" target="_blank" rel="noopener" title="Öppna produktsida">'+ic('external')+'</a>';}
+
+/* ============================================================
+   PAGE: DASHBOARD
+   ============================================================ */
+RENDERERS.dashboard=function(){
+  const ps=portfolioStats();
+  const cb=categoryBreakdown();
+  // "Köp idag" — bästa möjlighet från bevakningar
+  let bestBuy=null;
+  state.watch.forEach(w=>{
+    const bb=bestBuyEntry(w); if(!bb)return;
+    const tgt=toBase(w.targetPrice,w.targetCurrency);
+    const score=buyScore(w);
+    const hit=bb.totalBase<=tgt;
+    const cand={w,bb,tgt,score:score==null?40:score,hit,delta:tgt-bb.totalBase};
+    if(!bestBuy)bestBuy=cand;
+    else{
+      const rank=c=>(c.hit?1000:0)+c.score;
+      if(rank(cand)>rank(bestBuy))bestBuy=cand;
+    }
+  });
+  const recent=state.priceHistory.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
+
+  let html=''
+  +'<div class="grid kpis">'
+  + kpi('Portföljvärde',fmtBase(ps.market),pillPct(ps.pct)+'<span class="dim">orealiserad</span>','trending')
+  + kpi('Vinst / förlust',(ps.profit>=0?'+':'')+fmtBase(ps.profit),'<span class="'+(ps.profit>=0?'gain':'loss')+'">vs. inköp '+fmtBase(ps.cost)+'</span>','chart')
+  + kpi('Objekt i samling',ps.count+' <span class="dim" style="font-size:15px">poster</span>','<span class="dim">'+ps.units+' enheter • '+ps.priced+' prissatta</span>','layers')
+  + kpi('Bevakningar',state.watch.length+'','<span class="dim">'+state.watch.filter(w=>{const bb=bestBuyEntry(w);return bb&&bb.totalBase<=toBase(w.targetPrice,w.targetCurrency);}).length+' under målpris</span>','eye')
+  +'</div>';
+
+  // Köp idag + portfölj-graf
+  html+='<div class="three-col" style="margin-top:18px">';
+  if(bestBuy){
+    const w=bestBuy.w,site=siteById(bestBuy.bb.entry.siteId);
+    html+='<div class="card" style="border-color:'+(bestBuy.hit?'var(--primary)':'var(--border)')+';'+(bestBuy.hit?'box-shadow:0 0 30px -12px var(--primary)':'')+'">'
+      +'<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px"><span class="cat-tag" style="background:var(--primary-glow);color:var(--primary)">'+ic('fire')+' Köp idag</span>'
+      +(bestBuy.hit?'<span class="pill up">Under målpris!</span>':'<span class="pill flat">Köp-poäng '+bestBuy.score+'</span>')+'</div>'
+      +'<div style="font-family:var(--display);font-size:18px;font-weight:700;line-height:1.25;margin-bottom:6px">'+esc(w.name)+'</div>'
+      +'<div class="dim" style="font-size:12.5px;margin-bottom:14px">'+catTag(w.cat)+' &nbsp;'+esc(w.type||'')+'</div>'
+      +'<div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap">'
+      +'<div><div class="dim" style="font-size:11px">BÄSTA TOTALPRIS</div><div class="num" style="font-size:26px;font-weight:700;color:var(--primary)">'+fmtBase(bestBuy.bb.totalBase)+'</div></div>'
+      +'<div><div class="dim" style="font-size:11px">MÅLPRIS</div><div class="num" style="font-size:16px">'+fmt(w.targetPrice,w.targetCurrency)+'</div></div>'
+      +(site?'<div><div class="dim" style="font-size:11px">SAJT</div><div style="font-weight:600;color:'+site.color+'">'+esc(site.name)+'</div></div>':'')
+      +'</div>'
+      +'<div style="display:flex;gap:8px;margin-top:16px">'
+      +(bestBuy.bb.entry.url?'<a class="btn primary" href="'+esc(bestBuy.bb.entry.url)+'" target="_blank" rel="noopener">'+ic('external')+'Till produkten</a>':'')
+      +'<button class="btn ghost" onclick="navigate(\'watchlist\')">Se alla bevakningar</button>'
+      +'</div></div>';
+  }else{
+    html+='<div class="card"><div class="empty"><div class="big">'+ic('fire')+'</div><h3>Inga köpförslag än</h3><p>Lägg objekt i din köplista med målpriser så visas det bästa köptillfället här.</p><button class="btn primary" onclick="navigate(\'watchlist\')">Till köplistan</button></div></div>';
+  }
+  html+='<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><b style="font-family:var(--display)">Portföljvärde (12 mån)</b>'+pillPct(ps.pct)+'</div><div class="chart-box sm"><canvas id="dashChart"></canvas></div></div>';
+  html+='</div>';
+
+  // Kategorifördelning + senaste aktivitet
+  html+='<div class="two-col" style="margin-top:18px">';
+  html+='<div class="card"><b style="font-family:var(--display)">Kategorifördelning</b>';
+  if(cb.length){
+    html+='<div style="margin-top:14px;display:flex;flex-direction:column;gap:11px">';
+    const tot=cb.reduce((s,c)=>s+c.market,0)||1;
+    cb.forEach(c=>{const pc=c.market/tot*100;const prof=c.cost>0?c.profit/c.cost*100:0;
+      html+='<div><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>'+catTag(c.cat)+'</span><span class="num">'+fmtBase(c.market)+' &nbsp;<span class="'+(prof>=0?'gain':'loss')+'">'+(prof>=0?'+':'')+prof.toFixed(0)+'%</span></span></div>'
+        +'<div class="bar"><span style="width:'+pc.toFixed(1)+'%;background:'+catColor(c.cat)+'"></span></div></div>';});
+    html+='</div>';
+  }else html+='<div class="empty"><p>Ingen prissatt data ännu.</p></div>';
+  html+='</div>';
+
+  html+='<div class="card"><b style="font-family:var(--display)">Senaste prisaktivitet</b>';
+  if(recent.length){
+    html+='<div style="margin-top:12px;display:flex;flex-direction:column;gap:9px">';
+    recent.forEach(h=>{const site=siteById(h.siteId);
+      html+='<div style="display:flex;align-items:center;gap:10px;font-size:12.5px;padding-bottom:9px;border-bottom:1px solid var(--border-soft)">'
+        +'<span class="dim num" style="font-size:11px;min-width:62px">'+h.date+'</span>'
+        +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(h.name)+'</span>'
+        +'<span style="color:'+(site?site.color:'#888')+';font-size:11px;font-weight:600">'+(site?esc(site.name):'')+'</span>'
+        +'<span class="num" style="min-width:70px;text-align:right">'+fmt(h.price,h.currency)+'</span></div>';});
+    html+='</div>';
+  }else html+='<div class="empty"><p>Ingen prishistorik ännu.</p></div>';
+  html+='</div></div>';
+
+  $('#page-dashboard').innerHTML=html;
+  drawPortfolioChart('dashChart');
+};
+function drawPortfolioChart(id){
+  const cv=$('#'+id);if(!cv)return;const th=chartTheme();
+  const snaps=state.snapshots.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const grad=cv.getContext('2d').createLinearGradient(0,0,0,200);
+  grad.addColorStop(0,hexA(cssVar('--primary')||'#f5c451',.35));grad.addColorStop(1,hexA(cssVar('--primary')||'#f5c451',0));
+  makeChart(id,cv,{type:'line',data:{labels:snaps.map(s=>s.date.slice(0,7)),datasets:[{data:snaps.map(s=>s.value),borderColor:th.line,backgroundColor:grad,fill:true,tension:.35,pointRadius:0,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtBase(c.parsed.y)}}},
+    scales:{x:{grid:{display:false},ticks:{color:th.text,maxTicksLimit:6,font:{size:10}}},y:{grid:{color:th.grid},ticks:{color:th.text,font:{size:10},callback:v=>fmtBase(v)}}}}});
+}
+
+/* ============================================================
+   PAGE: COLLECTION (Min samling)
+   ============================================================ */
+let collFilter={q:'',cat:'all',cond:'all',site:'all',sort:'value',view:'list'};
+function filteredItems(){
+  let arr=state.items.slice();
+  const q=collFilter.q.toLowerCase().trim();
+  if(q)arr=arr.filter(i=>(i.name+' '+i.set+' '+(i.tags||[]).join(' ')+' '+catName(i.cat)).toLowerCase().includes(q));
+  if(collFilter.cat!=='all')arr=arr.filter(i=>i.cat===collFilter.cat);
+  if(collFilter.cond!=='all')arr=arr.filter(i=>i.condition===collFilter.cond);
+  if(collFilter.site!=='all')arr=arr.filter(i=>(i.prices||[]).some(p=>p.siteId===collFilter.site&&p.price!=null));
+  const s=collFilter.sort;
+  arr.sort((a,b)=>{
+    if(s==='value')return (itemMarketBase(b)||0)-(itemMarketBase(a)||0);
+    if(s==='profit')return (itemProfitBase(b)||-1e9)-(itemProfitBase(a)||-1e9);
+    if(s==='profitpct'){const pa=itemCostBase(a)>0?(itemProfitBase(a)||0)/itemCostBase(a):0;const pb=itemCostBase(b)>0?(itemProfitBase(b)||0)/itemCostBase(b):0;return pb-pa;}
+    if(s==='date')return (b.buyDate||'').localeCompare(a.buyDate||'');
+    if(s==='name')return a.name.localeCompare(b.name);
+    return 0;
+  });
+  return arr;
+}
+RENDERERS.collection=function(){
+  const items=filteredItems();
+  let html=''
+  +'<div class="toolbar">'
+  +'<div class="search">'+ic('search')+'<input id="collSearch" placeholder="Sök namn, set, tagg…" value="'+esc(collFilter.q)+'"></div>'
+  +'<select class="fltr" id="collCond"><option value="all">Alla skick</option>'+CONDITIONS.map(c=>'<option '+(collFilter.cond===c?'selected':'')+'>'+c+'</option>').join('')+'</select>'
+  +'<select class="fltr" id="collSite"><option value="all">Alla sajter</option>'+state.sites.map(s=>'<option value="'+s.id+'" '+(collFilter.site===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>'
+  +'<select class="fltr" id="collSort">'
+    +['value|Värde','profit|Vinst (kr)','profitpct|Vinst (%)','date|Inköpsdatum','name|Namn'].map(o=>{const[v,l]=o.split('|');return '<option value="'+v+'" '+(collFilter.sort===v?'selected':'')+'>'+l+'</option>';}).join('')
+  +'</select>'
+  +'<button class="btn primary" onclick="itemForm()">'+ic('plus')+'Lägg till objekt</button>'
+  +'<div class="view-toggle"><button class="'+(collFilter.view==='list'?'active':'')+'" onclick="setCollView(\'list\')" title="Tabellvy">'+ic('list')+'</button>'
+    +'<button class="'+(collFilter.view==='gallery'?'active':'')+'" onclick="setCollView(\'gallery\')" title="Gallerivy">'+ic('grid')+'</button></div>'
+  +'<button class="btn ghost" onclick="exportData()" title="Exportera JSON">'+ic('download')+'</button>'
+  +'<button class="btn ghost" onclick="importPrompt()" title="Importera JSON">'+ic('upload')+'</button>'
+  +'</div>';
+
+  // category chips
+  html+='<div class="chips" style="margin-bottom:16px"><button class="chip '+(collFilter.cat==='all'?'active':'')+'" onclick="setCollCat(\'all\')">Alla ('+state.items.length+')</button>'
+    +state.categories.map(c=>{const n=state.items.filter(i=>i.cat===c.id).length;if(!n)return '';
+      return '<button class="chip '+(collFilter.cat===c.id?'active':'')+'" onclick="setCollCat(\''+c.id+'\')"><span class="swatch" style="background:'+c.color+'"></span>'+esc(shortCat(c.name))+' ('+n+')</button>';}).join('')
+    +'</div>';
+
+  if(!items.length){
+    html+='<div class="card"><div class="empty"><div class="big">'+ic('layers')+'</div><h3>Inga objekt matchar</h3><p>Justera filtren eller lägg till ditt första objekt i samlingen.</p><button class="btn primary" onclick="itemForm()">'+ic('plus')+'Lägg till objekt</button></div></div>';
+  }else if(collFilter.view==='gallery'){
+    html+='<div class="gallery">';
+    items.forEach(it=>{
+      const market=itemMarketBase(it);
+      const src=primaryImage(it);
+      const img=src?'<img src="'+esc(src)+'" alt="" loading="lazy" onerror="this.outerHTML=\'<div class=\\\'ph\\\'>'+ic('image')+'</div>\'">':'<div class="ph">'+ic('box')+'</div>';
+      html+='<div class="gcard" onclick="openCard(\''+it.id+'\')">'
+        +'<div class="gimg">'+img
+          +((it.qty||1)>1?'<span class="gqty">×'+(it.qty||1)+'</span>':'')
+          +(hasOwnPhoto(it)?'<span class="gown">'+ic('camera')+'Eget foto</span>':'')
+        +'</div>'
+        +'<div class="gbody"><div class="gnm">'+esc(it.name)+'</div>'
+          +'<div class="gmeta">'+esc(it.set||'')+(it.type&&it.type!=='Enskilt kort'?' · '+esc(it.type):'')+'</div>'
+          +'<div class="grow">'+condTag(it.condition)
+            +'<span class="gval num">'+(market==null?'<span class="faint" style="font-weight:400">—</span>':fmtBase(market))+'</span></div>'
+        +'</div></div>';
+    });
+    html+='</div>';
+  }else{
+    html+='<div class="table-wrap"><div class="table-scroll"><table><thead><tr>'
+      +'<th>Objekt</th><th>Kategori</th><th>Skick</th><th class="right">Antal</th><th class="right">Inköp (tot)</th><th class="right">Enhetspris</th><th class="right">Värde</th><th class="right">V/F</th><th></th>'
+      +'</tr></thead><tbody>';
+    items.forEach(it=>{
+      const cost=itemCostBase(it),market=itemMarketBase(it),profit=itemProfitBase(it);
+      const u=unitMarketBase(it);
+      const ppct=cost>0&&profit!=null?profit/cost*100:null;
+      html+='<tr>'
+        +'<td><div class="item-cell"><span style="cursor:pointer" onclick="openCard(\''+it.id+'\')">'+thumb(it)+'</span><div><div class="nm" style="cursor:pointer" onclick="openCard(\''+it.id+'\')">'+esc(it.name)+(hasOwnPhoto(it)?' <span style="color:var(--primary)" title="Har eget foto">'+ic('camera')+'</span>':'')+'</div><div class="meta">'+esc(it.set||'')+(it.type?' · '+esc(it.type):'')+'</div>'
+          +((it.tags&&it.tags.length)?'<div class="tags">'+it.tags.map(t=>'<span class="tag">'+esc(t)+'</span>').join('')+'</div>':'')+'</div></div></td>'
+        +'<td>'+catTag(it.cat)+'</td>'
+        +'<td>'+condTag(it.condition)+(it.cert?'<div class="faint num" style="font-size:10px;margin-top:3px">'+esc(it.cert)+'</div>':'')+'</td>'
+        +'<td class="right num">'+(it.qty||1)+'</td>'
+        +'<td class="right num dim">'+fmtBase(cost)+'</td>'
+        +'<td class="right num">'+(u==null?'<span class="faint">—</span>':fmtBase(u))+'</td>'
+        +'<td class="right num" style="font-weight:600">'+(market==null?'<span class="faint">ej prissatt</span>':fmtBase(market))+'</td>'
+        +'<td class="right num '+(profit==null?'':(profit>=0?'gain':'loss'))+'">'+(profit==null?'<span class="faint">—</span>':((profit>=0?'+':'')+fmtBase(profit)+(ppct!=null?'<div style="font-size:10px">'+(ppct>=0?'+':'')+ppct.toFixed(0)+'%</div>':'')))+'</td>'
+        +'<td><div class="row-actions">'
+          +'<button class="iconbtn" title="Kortsida (stor bild)" onclick="openCard(\''+it.id+'\')">'+ic('expand')+'</button>'
+          +'<button class="iconbtn" title="Priser & detaljer" onclick="itemDetail(\''+it.id+'\')">'+ic('chart')+'</button>'
+          +'<button class="iconbtn" title="Redigera" onclick="itemForm(\''+it.id+'\')">'+ic('edit')+'</button>'
+          +'<button class="iconbtn del" title="Ta bort" onclick="deleteItem(\''+it.id+'\')">'+ic('trash')+'</button>'
+          +'</div></td>'
+        +'</tr>';
+    });
+    html+='</tbody></table></div></div>';
+    // summary footer
+    const tm=items.reduce((s,i)=>s+(itemMarketBase(i)||0),0);
+    const tc=items.reduce((s,i)=>s+itemCostBase(i),0);
+    html+='<div style="display:flex;gap:24px;justify-content:flex-end;margin-top:14px;font-size:13px" class="num">'
+      +'<span class="dim">Visat: '+items.length+' poster</span>'
+      +'<span class="dim">Inköp: '+fmtBase(tc)+'</span>'
+      +'<span>Värde: <b>'+fmtBase(tm)+'</b></span>'
+      +'<span class="'+(tm-tc>=0?'gain':'loss')+'">V/F: '+((tm-tc>=0?'+':'')+fmtBase(tm-tc))+'</span></div>';
+  }
+  $('#page-collection').innerHTML=html;
+  const si=$('#collSearch');if(si){si.oninput=e=>{collFilter.q=e.target.value;RENDERERS.collection();$('#collSearch').focus();const v=$('#collSearch').value;$('#collSearch').setSelectionRange(v.length,v.length);};}
+  $('#collCond').onchange=e=>{collFilter.cond=e.target.value;RENDERERS.collection();};
+  $('#collSite').onchange=e=>{collFilter.site=e.target.value;RENDERERS.collection();};
+  $('#collSort').onchange=e=>{collFilter.sort=e.target.value;RENDERERS.collection();};
+};
+function setCollCat(c){collFilter.cat=c;RENDERERS.collection();}
+function setCollView(v){collFilter.view=v;save();RENDERERS.collection();}
+
+/* ============================================================
+   ITEM DETAIL + PRICE EDITOR
+   ============================================================ */
+function findObj(kind,id){return kind==='watch'?state.watch.find(w=>w.id===id):itemById(id);}
+function itemDetail(id){
+  const it=itemById(id);if(!it)return;
+  const score=buyScore(it);
+  const cost=itemCostBase(it),market=itemMarketBase(it),profit=itemProfitBase(it);
+  let html='<div class="modal-head">'+thumb(it)+'<div><h3 style="font-size:17px;line-height:1.2">'+esc(it.name)+'</h3><div class="dim" style="font-size:12px;margin-top:2px">'+catTag(it.cat)+' · '+esc(it.set||'')+(it.language?' · '+esc(langLabel(it.language)):'')+(it.condition?' · '+esc(it.condition):'')+'</div></div><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>';
+  html+='<div class="modal-body">';
+  // stat row
+  html+='<div class="grid kpis" style="margin-bottom:18px">'
+    +'<div class="card kpi"><div class="label">Antal × inköp</div><div class="val" style="font-size:20px">'+(it.qty||1)+' × '+fmt(it.buyPrice,it.buyCurrency)+'</div><div class="sub dim">Tot. '+fmtBase(cost)+'</div></div>'
+    +'<div class="card kpi"><div class="label">Marknadsvärde</div><div class="val" style="font-size:20px">'+(market==null?'—':fmtBase(market))+'</div><div class="sub '+(profit==null?'dim':(profit>=0?'gain':'loss'))+'">'+(profit==null?'ej prissatt':((profit>=0?'+':'')+fmtBase(profit)))+'</div></div>'
+    +'<div class="card kpi"><div class="label">Köp-poäng</div>'+(score==null?'<div class="val" style="font-size:20px">—</div><div class="sub dim">behöver historik</div>':'<div class="val" style="font-size:20px;color:'+scoreColor(score)+'">'+score+'/100</div><div class="sub" style="color:'+scoreColor(score)+'">'+scoreLabel(score)+'</div>')+'</div>'
+    +'</div>';
+  if(it.cert)html+='<div class="note-banner">'+ic('check')+'<div>Graderat objekt — cert: <b class="num">'+esc(it.cert)+'</b></div></div>';
+  if(it.notes)html+='<div class="note-banner">'+ic('alert')+'<div>'+esc(it.notes)+'</div></div>';
+  // price comparison
+  html+=sectionHead('Prisjämförelse','<button class="btn sm" onclick="priceEditor(\'item\',\''+it.id+'\')">'+ic('edit')+'Uppdatera priser</button>');
+  html+='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th>Sajt</th><th class="right">Pris</th><th class="right">Frakt</th><th class="right">Totalt</th><th></th></tr></thead><tbody>'+priceRows(it)+'</tbody></table></div></div>';
+  // history chart
+  const hist=historyFor(it.id);
+  if(hist.length){html+=sectionHead('Prishistorik','');html+='<div class="chart-box sm"><canvas id="detailChart"></canvas></div>';}
+  html+='</div>';
+  html+='<div class="modal-foot"><button class="btn ghost" onclick="itemForm(\''+it.id+'\')">'+ic('edit')+'Redigera objekt</button><button class="btn" onclick="closeModal()">Stäng</button></div>';
+  openModal(html,true);
+  if(hist.length)setTimeout(()=>drawHistoryChart('detailChart',it.id),60);
+}
+function drawHistoryChart(canvasId,itemRef){
+  const cv=$('#'+canvasId);if(!cv)return;const th=chartTheme();
+  const hist=historyFor(itemRef);
+  const sites=[...new Set(hist.map(h=>h.siteId))];
+  const dates=[...new Set(hist.map(h=>h.date))].sort();
+  const ds=sites.map(sid=>{const site=siteById(sid);
+    return {label:site?site.name:'?',borderColor:site?site.color:'#888',backgroundColor:'transparent',tension:.3,pointRadius:0,borderWidth:2,
+      data:dates.map(d=>{const h=hist.find(x=>x.date===d&&x.siteId===sid);return h?toBase(h.price,h.currency):null;}),spanGaps:true};});
+  makeChart(canvasId,cv,{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:ds},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:th.text,boxWidth:10,font:{size:11}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtBase(c.parsed.y)}}},
+    scales:{x:{grid:{display:false},ticks:{color:th.text,maxTicksLimit:8,font:{size:10}}},y:{grid:{color:th.grid},ticks:{color:th.text,font:{size:10},callback:v=>fmtBase(v)}}}}});
+}
+
+/* ============================================================
+   PAGE: CARD DETAIL (stor bild, egna foton)
+   ============================================================ */
+let _cardId=null;
+function openCard(id){
+  const it=itemById(id);if(!it){toast('Objektet hittades inte','err');return;}
+  _cardId=id;
+  navigate('card');
+}
+RENDERERS.card=function(){
+  const it=itemById(_cardId);
+  if(!it){$('#page-card').innerHTML='<div class="card"><div class="empty"><div class="big">'+ic('box')+'</div><h3>Inget kort valt</h3><button class="btn primary" onclick="navigate(\'collection\')">Till samlingen</button></div></div>';return;}
+  $('#pageTitle').textContent=it.name;
+  $('#pageSub').textContent=catName(it.cat)+(it.set?' · '+it.set:'');
+
+  const photos=itemPhotos(it);
+  const main=primaryImage(it);
+  const cost=itemCostBase(it),market=itemMarketBase(it),profit=itemProfitBase(it);
+  const ppct=cost>0&&profit!=null?profit/cost*100:null;
+  const score=buyScore(it);
+
+  let html='<div style="margin-bottom:16px"><button class="btn ghost sm" onclick="navigate(\'collection\')">'+ic('external')+'Tillbaka till samlingen</button></div>';
+  html+='<div class="cdetail">';
+
+  // ----- vänster: bildscen -----
+  html+='<div class="cd-stage">';
+  if(main)html+='<div class="cd-main" onclick="viewImage(\''+esc(main).replace(/'/g,"\\'")+'\')"><img src="'+esc(main)+'" alt="'+esc(it.name)+'" onerror="this.parentNode.innerHTML=\'<div class=\\\'ph\\\'>'+ic('image')+'<div>Bilden kunde inte laddas</div></div>\'"></div>';
+  else html+='<div class="cd-main" style="cursor:default"><div class="ph">'+ic('image')+'<div>Ingen bild ännu</div></div></div>';
+
+  // miniatyrer: officiell + egna foton
+  html+='<div class="cd-thumbs">';
+  if(it.image){const isAct=(it.imgPref!=='photo'||!photos.length);
+    html+='<div class="cd-thumb '+(isAct?'active':'')+'" onclick="setImgPref(\''+it.id+'\',\'official\')"><img src="'+esc(it.image)+'" alt=""><span class="lbl">OFFICIELL</span></div>';}
+  photos.forEach((p,idx)=>{const isAct=(it.imgPref==='photo'&&idx===0)||(!it.image&&idx===0);
+    html+='<div class="cd-thumb '+(isAct?'active':'')+'" onclick="setImgPref(\''+it.id+'\',\'photo\','+idx+')"><img src="'+esc(p)+'" alt="">'
+      +'<button class="pdel" title="Ta bort foto" onclick="event.stopPropagation();removePhoto(\''+it.id+'\','+idx+')">'+ic('x')+'</button>'
+      +'<span class="lbl">FOTO '+(idx+1)+'</span></div>';});
+  html+='</div>';
+
+  // uppladdning
+  html+='<div style="margin-top:14px">';
+  if(photosReady()){
+    html+='<input type="file" id="cardPhotoInput" accept="image/*" multiple style="display:none" onchange="onPhotoPick(\''+it.id+'\',this)">'
+      +'<input type="file" id="cardCamInput" accept="image/*" capture="environment" style="display:none" onchange="onPhotoPick(\''+it.id+'\',this)">'
+      +'<div style="display:flex;gap:9px;flex-wrap:wrap">'
+      +'<button class="btn sm" onclick="$(\'#cardPhotoInput\').click()">'+ic('upload')+'Ladda upp foto</button>'
+      +'<button class="btn sm ghost" onclick="$(\'#cardCamInput\').click()">'+ic('camera')+'Ta foto</button>'
+      +'</div><div class="dim" style="font-size:11px;margin-top:7px">Foton lagras i ditt Supabase Storage (max 8 MB/bild).</div>';
+  }else{
+    html+='<div class="note-banner">'+ic('alert')+'<div>Logga in på molnet (Inställningar → Molnsynkning) för att ladda upp egna foton av dina fysiska kort.</div></div>';
+  }
+  html+='</div></div>';
+
+  // ----- höger: info -----
+  html+='<div>';
+  html+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center">'+catTag(it.cat)+condTag(it.condition)
+    +(it.language?'<span class="cat-tag">'+esc(langLabel(it.language))+'</span>':'')
+    +(hasOwnPhoto(it)?'<span class="cat-tag" style="background:rgba(245,196,81,.14);color:var(--primary)"><span class="swatch" style="background:var(--primary)"></span>Eget foto</span>':'')+'</div>';
+  if(it.cert)html+='<div class="note-banner">'+ic('check')+'<div>Graderat objekt — cert: <b class="num">'+esc(it.cert)+'</b></div></div>';
+
+  html+='<div class="grid kpis" style="margin:6px 0 18px">'
+    +'<div class="card kpi"><div class="label">Antal × inköp</div><div class="val" style="font-size:20px">'+(it.qty||1)+' × '+fmt(it.buyPrice,it.buyCurrency)+'</div><div class="sub dim">Tot. '+fmtBase(cost)+'</div></div>'
+    +'<div class="card kpi"><div class="label">Marknadsvärde</div><div class="val" style="font-size:20px">'+(market==null?'—':fmtBase(market))+'</div><div class="sub '+(profit==null?'dim':(profit>=0?'gain':'loss'))+'">'+(profit==null?'ej prissatt':((profit>=0?'+':'')+fmtBase(profit)+(ppct!=null?' · '+(ppct>=0?'+':'')+ppct.toFixed(0)+'%':'')))+'</div></div>'
+    +'<div class="card kpi"><div class="label">Köp-poäng</div>'+(score==null?'<div class="val" style="font-size:20px">—</div><div class="sub dim">behöver historik</div>':'<div class="val" style="font-size:20px;color:'+scoreColor(score)+'">'+score+'/100</div><div class="sub" style="color:'+scoreColor(score)+'">'+scoreLabel(score)+'</div>')+'</div>'
+    +'</div>';
+
+  if(it.notes)html+='<div class="note-banner">'+ic('alert')+'<div>'+esc(it.notes)+'</div></div>';
+  if(it.tags&&it.tags.length)html+='<div class="tags" style="margin-bottom:16px">'+it.tags.map(t=>'<span class="tag">'+esc(t)+'</span>').join('')+'</div>';
+
+  // priser
+  html+=sectionHead('Prisjämförelse','<button class="btn sm" onclick="priceEditor(\'item\',\''+it.id+'\')">'+ic('edit')+'Uppdatera priser</button>');
+  html+='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th>Sajt</th><th class="right">Pris</th><th class="right">Frakt</th><th class="right">Totalt</th><th></th></tr></thead><tbody>'+priceRows(it)+'</tbody></table></div></div>';
+
+  const hist=historyFor(it.id);
+  if(hist.length){html+=sectionHead('Prishistorik','');html+='<div class="chart-box sm"><canvas id="cardChart"></canvas></div>';}
+
+  html+='<div style="display:flex;gap:10px;margin-top:18px"><button class="btn ghost" onclick="itemForm(\''+it.id+'\')">'+ic('edit')+'Redigera objekt</button>'
+    +'<button class="btn ghost" onclick="itemDetail(\''+it.id+'\')">'+ic('chart')+'Snabbvy (modal)</button></div>';
+  html+='</div></div>';
+
+  $('#page-card').innerHTML=html;
+  if(hist.length)setTimeout(()=>drawHistoryChart('cardChart',it.id),60);
+};
+// växla vilken bild som är primär; idx valfritt (flyttar fotot främst)
+function setImgPref(id,pref,idx){
+  const it=itemById(id);if(!it)return;
+  if(pref==='official'){it.imgPref='official';}
+  else{it.imgPref='photo';
+    if(idx!=null&&it.photos&&idx>0&&idx<it.photos.length){const p=it.photos.splice(idx,1)[0];it.photos.unshift(p);}}
+  save();if(currentPage==='card')RENDERERS.card();else rerenderCurrent();
+}
+async function onPhotoPick(id,input){
+  const it=itemById(id);if(!it)return;
+  const files=Array.from(input.files||[]);input.value='';
+  if(!files.length)return;
+  if(!photosReady()){toast('Logga in på molnet först','warn');return;}
+  it.photos=it.photos||[];
+  toast('Laddar upp '+files.length+' foto…','ok');
+  let ok=0;
+  for(const f of files){
+    try{const res=await uploadPhoto(id,f);it.photos.push(res.url);ok++;
+      if(!it.imgPref)it.imgPref='photo';
+    }catch(e){toast('Uppladdning misslyckades: '+e.message,'err');}
+  }
+  if(ok){save();toast(ok+' foto uppladdat','ok');}
+  if(currentPage==='card')RENDERERS.card();else rerenderCurrent();
+}
+async function removePhoto(id,idx){
+  const it=itemById(id);if(!it||!it.photos||idx<0||idx>=it.photos.length)return;
+  if(!confirm('Ta bort detta foto permanent?'))return;
+  const url=it.photos[idx];
+  it.photos.splice(idx,1);
+  if(it.imgPref==='photo'&&!it.photos.length)it.imgPref='official';
+  save();
+  deletePhotoFile(pathFromPublicUrl(url));
+  if(currentPage==='card')RENDERERS.card();else rerenderCurrent();
+  toast('Foto borttaget','warn');
+}
+
+function priceEditor(kind,id){
+  const obj=findObj(kind,id);if(!obj)return;
+  obj.prices=obj.prices||[];
+  let rows=state.sites.map(s=>{
+    const p=obj.prices.find(x=>x.siteId===s.id)||{};
+    return '<div class="card" style="padding:13px;margin-bottom:10px" data-site="'+s.id+'">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span class="swatch" style="width:11px;height:11px;border-radius:50%;background:'+s.color+'"></span><b>'+esc(s.name)+'</b><span class="dim" style="font-size:11px">('+s.currency+(s.region==='NON_EU'?' · utanför EU':'')+')</span></div>'
+      +'<div class="form-grid" style="gap:9px">'
+      +'<div class="fld"><label>Pris ('+s.currency+')</label><input type="number" step="0.01" class="pe-price" placeholder="lämna tomt = inget pris" value="'+(p.price!=null?p.price:'')+'"></div>'
+      +'<div class="fld"><label>Frakt ('+s.currency+')</label><input type="number" step="0.01" class="pe-ship" placeholder="standard '+(s.defaultShipping||0)+'" value="'+(p.shipping!=null?p.shipping:'')+'"></div>'
+      +'<div class="fld full"><label>Direktlänk till produktsida</label><input type="url" class="pe-url" placeholder="https://…" value="'+esc(p.url||'')+'"></div>'
+      +'</div></div>';
+  }).join('');
+  let html='<div class="modal-head"><h3>Uppdatera priser</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+    +'<div class="modal-body"><div class="note-banner">'+ic('alert')+'<div>Lämna prisfältet tomt om sajten <b>inte</b> har produkten — CardTrack hittar aldrig på priser. Frakt tom = sajtens standardfrakt.</div></div>'
+    +'<div style="font-weight:600;margin-bottom:10px">'+esc(obj.name)+'</div>'+rows+'</div>'
+    +'<div class="modal-foot"><button class="btn ghost" onclick="'+(kind==='watch'?'editWatch':'itemDetail')+'(\''+id+'\')">Avbryt</button><button class="btn primary" onclick="savePrices(\''+kind+'\',\''+id+'\')">'+ic('check')+'Spara priser</button></div>';
+  openModal(html,true);
+}
+function savePrices(kind,id){
+  const obj=findObj(kind,id);if(!obj)return;
+  const ov=$('#overlay');const cards=ov.querySelectorAll('[data-site]');
+  let changed=0;const newPrices=[];
+  cards.forEach(c=>{
+    const sid=c.dataset.site;const site=siteById(sid);
+    const price=c.querySelector('.pe-price').value;
+    const ship=c.querySelector('.pe-ship').value;
+    const url=c.querySelector('.pe-url').value.trim();
+    const old=(obj.prices||[]).find(x=>x.siteId===sid);
+    const entry={siteId:sid,currency:site.currency,
+      price:price===''?null:parseFloat(price),
+      shipping:ship===''?null:parseFloat(ship),
+      url:url,updated:todayISO()};
+    if(price!==''||url||(old&&old.price!=null)){newPrices.push(entry);}
+    // log history if price set & changed
+    if(price!==''&&(!old||old.price!=parseFloat(price))){
+      state.priceHistory.push({id:uid(),itemRef:id,name:obj.name,siteId:sid,price:parseFloat(price),currency:site.currency,date:todayISO(),auto:false});
+      changed++;
+    }
+  });
+  obj.prices=newPrices;
+  save();rerenderCurrent();
+  toast(changed?changed+' pris uppdaterade':'Priser sparade','ok');
+  if(kind==='watch')editWatch(id);else itemDetail(id);
+}
+
+/* ============================================================
+   ITEM FORM (lägg till / redigera)
+   ============================================================ */
+function opt(list,sel){return list.map(o=>'<option '+(o===sel?'selected':'')+'>'+esc(o)+'</option>').join('');}
+function catOptions(sel){return state.categories.map(c=>'<option value="'+c.id+'" '+(c.id===sel?'selected':'')+'>'+esc(c.name)+'</option>').join('');}
+function curOptions(sel){return CURRENCIES.map(c=>'<option '+(c===sel?'selected':'')+'>'+c+'</option>').join('');}
+
+function photoFormBlock(it){
+  const photos=itemPhotos(it);
+  let h='<div class="photo-grid" id="photoGrid">';
+  photos.forEach((p,idx)=>{h+='<div class="photo-thumb"><img src="'+esc(p)+'" alt=""><button type="button" class="pdel" title="Ta bort" onclick="removePhotoFromForm(\''+it.id+'\','+idx+')">'+ic('x')+'</button></div>';});
+  if(photosReady()){
+    h+='<button type="button" class="photo-add" id="formPhotoAdd" title="Lägg till foto" onclick="$(\'#formPhotoInput\').click()">'+ic('plus')+'</button>';
+    h+='</div><input type="file" id="formPhotoInput" accept="image/*" multiple style="display:none" onchange="onFormPhotoPick(\''+it.id+'\',this)">';
+    h+='<div class="dim" style="font-size:11px;margin-top:6px">Lagras i Supabase Storage (max 8 MB/bild). Välj primärbild på kortsidan.</div>';
+  }else{
+    h+='</div><div class="dim" style="font-size:11px;margin-top:6px">Logga in på molnet för att ladda upp egna foton.</div>';
+  }
+  return h;
+}
+async function onFormPhotoPick(id,input){
+  const add=$('#formPhotoAdd');if(add)add.classList.add('photo-uploading');
+  await onPhotoPick(id,input);
+  // rita om formulärets fotoblock utan att stänga modalen
+  const grid=$('#photoGrid');const it=itemById(id);
+  if(grid&&it){const wrap=grid.closest('.fld');if(wrap)wrap.innerHTML='<label>Egna foton av ditt fysiska kort</label>'+photoFormBlock(it);}
+}
+function removePhotoFromForm(id,idx){
+  removePhoto(id,idx).then(()=>{
+    const it=itemById(id);const grid=$('#photoGrid');
+    if(grid&&it){const wrap=grid.closest('.fld');if(wrap)wrap.innerHTML='<label>Egna foton av ditt fysiska kort</label>'+photoFormBlock(it);}
+  });
+}
+
+function itemForm(id){
+  const it=id?itemById(id):null;
+  const d=it||{cat:state.categories[0].id,type:PRODUCT_TYPES[0],condition:CONDITIONS[0],qty:1,buyCurrency:base(),buyDate:todayISO(),tags:[]};
+  let html='<div class="modal-head"><h3>'+(it?'Redigera objekt':'Lägg till objekt')+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+  +'<div class="modal-body"><form id="itemFormEl"><div class="form-grid">'
+  +'<div class="fld full"><label>Namn <span class="req">*</span></label><div class="ta-wrap"><input name="name" id="taInput" autocomplete="off" required value="'+esc(d.name||'')+'" placeholder="Börja skriv kort- eller setnamn…"><div class="ta-results" id="taResults"></div></div><div class="cat-hint" id="taHint"></div></div>'
+  +'<div class="fld"><label>Kategori <span class="req">*</span></label><select name="cat" id="taCat">'+catOptions(d.cat)+'</select></div>'
+  +'<div class="fld"><label>Språk</label><select name="language" id="taLang">'+langOptions(d.language||'en')+'</select></div>'
+  +'<div class="fld"><label>Set / serie</label><input name="set" value="'+esc(d.set||'')+'" placeholder="t.ex. SV: 151"></div>'
+  +'<div class="fld"><label>Produkttyp</label><select name="type">'+opt(PRODUCT_TYPES,d.type)+'</select></div>'
+  +'<div class="fld"><label>Skick</label><select name="condition">'+opt(CONDITIONS,d.condition)+'</select></div>'
+  +'<div class="fld"><label>Antal</label><input name="qty" type="number" min="1" step="1" value="'+(d.qty||1)+'"></div>'
+  +'<div class="fld"><label>PSA/BGS/CGC cert-nr</label><input name="cert" value="'+esc(d.cert||'')+'" placeholder="om gradat"></div>'
+  +'<div class="fld full"><label>Officiell bild-URL</label><input name="image" type="url" value="'+esc(d.image||'')+'" placeholder="https://… (hämtas oftast automatiskt)"></div>'
+  +(it?('<div class="fld full"><label>Egna foton av ditt fysiska kort</label>'+photoFormBlock(it)+'</div>'):'<div class="fld full"><div class="dim" style="font-size:12px">'+ic('camera')+' Egna foton kan laddas upp på kortets detaljsida efter att du sparat objektet.</div></div>')
+  +'<div class="fld"><label>Inköpspris (per enhet)</label><input name="buyPrice" type="number" step="0.01" value="'+(d.buyPrice!=null?d.buyPrice:'')+'"></div>'
+  +'<div class="fld"><label>Valuta</label><select name="buyCurrency">'+curOptions(d.buyCurrency)+'</select></div>'
+  +'<div class="fld"><label>Frakt vid köp (total)</label><input name="buyShipping" type="number" step="0.01" value="'+(d.buyShipping!=null?d.buyShipping:'')+'"></div>'
+  +'<div class="fld"><label>Inköpsdatum</label><input name="buyDate" type="date" value="'+esc(d.buyDate||todayISO())+'"></div>'
+  +'<div class="fld"><label>Säljare</label><input name="seller" value="'+esc(d.seller||'')+'"></div>'
+  +'<div class="fld"><label>Taggar (komma)</label><input name="tags" value="'+esc((d.tags||[]).join(', '))+'" placeholder="investering, sealed"></div>'
+  +'<div class="fld full"><label>Anteckningar</label><textarea name="notes" placeholder="Transaktion, skick, plan…">'+esc(d.notes||'')+'</textarea></div>'
+  +'</div></form></div>'
+  +'<div class="modal-foot">'+(it?'<button class="btn danger" onclick="deleteItem(\''+it.id+'\',true)">'+ic('trash')+'Ta bort</button>':'')+'<div style="flex:1"></div><button class="btn ghost" onclick="closeModal()">Avbryt</button><button class="btn primary" onclick="saveItem(\''+(id||'')+'\')">'+ic('check')+'Spara</button></div>';
+  openModal(html);
+  initCatalog();
+}
+function saveItem(id){
+  const f=$('#itemFormEl');if(!f.name.value.trim()){toast('Namn krävs','err');return;}
+  const data={
+    name:f.name.value.trim(),cat:f.cat.value,set:f.set.value.trim(),type:f.type.value,condition:f.condition.value,
+    language:f.language?f.language.value:'en',
+    cert:f.cert.value.trim(),qty:parseInt(f.qty.value)||1,image:f.image.value.trim(),
+    buyPrice:f.buyPrice.value===''?0:parseFloat(f.buyPrice.value),buyCurrency:f.buyCurrency.value,
+    buyShipping:f.buyShipping.value===''?0:parseFloat(f.buyShipping.value),buyDate:f.buyDate.value,
+    seller:f.seller.value.trim(),tags:f.tags.value.split(',').map(t=>t.trim()).filter(Boolean),notes:f.notes.value.trim()
+  };
+  if(id){const it=itemById(id);Object.assign(it,data);toast('Objekt uppdaterat','ok');}
+  else{state.items.push(Object.assign({id:uid(),prices:[]},data));toast('Objekt tillagt — lägg nu till priser','ok');}
+  save();closeModal();rerenderCurrent();
+  if(currentPage!=='collection')navigate('collection');
+}
+function deleteItem(id,fromForm){
+  const it=itemById(id);if(!it)return;
+  if(!confirm('Ta bort "'+it.name+'" ur samlingen?'))return;
+  state.items=state.items.filter(i=>i.id!==id);
+  state.priceHistory=state.priceHistory.filter(h=>h.itemRef!==id);
+  save();if(fromForm)closeModal();rerenderCurrent();toast('Objekt borttaget','warn');
+}
+function quickAdd(){
+  openModal('<div class="modal-head"><h3>Vad vill du lägga till?</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+    +'<div class="modal-body"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();itemForm()"><div style="color:var(--primary);margin-bottom:8px">'+ic('layers')+'</div><b>Objekt i samling</b><div class="dim" style="font-size:12px;margin-top:4px">Kort, ETB, box du äger</div></button>'
+    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();watchForm()"><div style="color:var(--primary);margin-bottom:8px">'+ic('eye')+'</div><b>Bevakning</b><div class="dim" style="font-size:12px;margin-top:4px">Något du vill köpa</div></button>'
+    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();siteForm()"><div style="color:var(--primary);margin-bottom:8px">'+ic('store')+'</div><b>Sajt</b><div class="dim" style="font-size:12px;margin-top:4px">Ny kortbutik att bevaka</div></button>'
+    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();catForm()"><div style="color:var(--primary);margin-bottom:8px">'+ic('tag')+'</div><b>Kategori</b><div class="dim" style="font-size:12px;margin-top:4px">Ny TCG-typ</div></button>'
+    +'</div></div>');
+}
+
+/* ============================================================
+   PAGE: WATCHLIST (Köplista & bevakningar)
+   ============================================================ */
+RENDERERS.watchlist=function(){
+  const hits=state.watch.filter(w=>{const bb=bestBuyEntry(w);return bb&&bb.totalBase<=toBase(w.targetPrice,w.targetCurrency);}).length;
+  let html='<div class="toolbar">'
+    +'<div class="search">'+ic('search')+'<input id="watchSearch" placeholder="Sök bevakningar…"></div>'
+    +'<button class="btn primary" onclick="watchForm()">'+ic('plus')+'Ny bevakning</button></div>';
+  html+='<div class="grid kpis" style="margin-bottom:18px">'
+    + kpi('Bevakningar',state.watch.length+'','<span class="dim">objekt på köplistan</span>','eye')
+    + kpi('Under målpris',hits+'','<span class="'+(hits?'gain':'dim')+'">redo att köpa</span>','target')
+    + kpi('Förbeställningar',state.watch.filter(w=>w.preorder).length+'','<span class="dim">kommande releaser</span>','clock')
+    +'</div>';
+  if(!state.watch.length){
+    html+='<div class="card"><div class="empty"><div class="big">'+ic('eye')+'</div><h3>Köplistan är tom</h3><p>Lägg till objekt du vill köpa med ett målpris. CardTrack markerar när priset nås och beräknar en köp-poäng.</p><button class="btn primary" onclick="watchForm()">'+ic('plus')+'Ny bevakning</button></div></div>';
+  }else{
+    html+='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th>Objekt</th><th>Kategori</th><th class="right">Målpris</th><th class="right">Bästa pris nu</th><th class="right">Diff</th><th>Köp-poäng</th><th>Status</th><th></th></tr></thead><tbody>';
+    const q=( $('#watchSearch')&&$('#watchSearch').value||'').toLowerCase();
+    state.watch.filter(w=>!q||w.name.toLowerCase().includes(q)).forEach(w=>{
+      const bb=bestBuyEntry(w);const tgt=toBase(w.targetPrice,w.targetCurrency);
+      const score=buyScore(w);const site=bb?siteById(bb.entry.siteId):null;
+      const hit=bb&&bb.totalBase<=tgt;const diff=bb?bb.totalBase-tgt:null;
+      html+='<tr>'
+        +'<td><div class="item-cell"><div class="thumb ph">'+ic('eye')+'</div><div><div class="nm">'+esc(w.name)+(w.preorder?' <span class="tag" style="background:var(--info);color:#fff">FÖRBESTÄLLNING</span>':'')+'</div><div class="meta">'+esc(w.type||'')+(w.notes?' · '+esc(w.notes):'')+'</div></div></div></td>'
+        +'<td>'+catTag(w.cat)+'</td>'
+        +'<td class="right num">'+fmt(w.targetPrice,w.targetCurrency)+'</td>'
+        +'<td class="right num" style="font-weight:600">'+(bb?fmtBase(bb.totalBase)+(site?'<div class="faint" style="font-size:10px;font-weight:400">@ '+esc(site.name)+'</div>':''):'<span class="faint">inget pris</span>')+'</td>'
+        +'<td class="right num '+(diff==null?'':(diff<=0?'gain':'loss'))+'">'+(diff==null?'—':(diff<=0?'':'+')+fmtBase(diff))+'</td>'
+        +'<td>'+(score==null?'<span class="faint" style="font-size:11px">—</span>':'<div class="scorebar"><div class="track"><span style="width:'+score+'%;background:'+scoreColor(score)+'"></span></div><span class="num" style="font-size:11px;color:'+scoreColor(score)+'">'+score+'</span></div>')+'</td>'
+        +'<td>'+(hit?'<span class="pill up">▼ Under mål</span>':bb?'<span class="pill flat">avvakta</span>':'<span class="pill flat">—</span>')+'</td>'
+        +'<td><div class="row-actions">'
+          +(bb&&bb.entry.url?'<a class="iconbtn" href="'+esc(bb.entry.url)+'" target="_blank" rel="noopener" title="Öppna">'+ic('external')+'</a>':'')
+          +'<button class="iconbtn" title="Priser" onclick="priceEditor(\'watch\',\''+w.id+'\')">'+ic('chart')+'</button>'
+          +'<button class="iconbtn" title="Redigera" onclick="watchForm(\''+w.id+'\')">'+ic('edit')+'</button>'
+          +'<button class="iconbtn" title="Flytta till samling" onclick="watchToCollection(\''+w.id+'\')">'+ic('layers')+'</button>'
+          +'<button class="iconbtn del" title="Ta bort" onclick="deleteWatch(\''+w.id+'\')">'+ic('trash')+'</button>'
+          +'</div></td></tr>';
+    });
+    html+='</tbody></table></div></div>';
+  }
+  $('#page-watchlist').innerHTML=html;
+  const ws=$('#watchSearch');if(ws)ws.oninput=()=>RENDERERS.watchlist();
+};
+function editWatch(id){watchForm(id);}
+function watchForm(id){
+  const w=id?state.watch.find(x=>x.id===id):null;
+  const d=w||{cat:state.categories[0].id,type:PRODUCT_TYPES[0],targetCurrency:base(),preorder:false};
+  let html='<div class="modal-head"><h3>'+(w?'Redigera bevakning':'Ny bevakning')+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+    +'<div class="modal-body"><form id="watchFormEl"><div class="form-grid">'
+    +'<div class="fld full"><label>Namn <span class="req">*</span></label><input name="name" required value="'+esc(d.name||'')+'"></div>'
+    +'<div class="fld"><label>Kategori</label><select name="cat">'+catOptions(d.cat)+'</select></div>'
+    +'<div class="fld"><label>Produkttyp</label><select name="type">'+opt(PRODUCT_TYPES,d.type)+'</select></div>'
+    +'<div class="fld"><label>Målpris <span class="req">*</span></label><input name="targetPrice" type="number" step="0.01" required value="'+(d.targetPrice!=null?d.targetPrice:'')+'"></div>'
+    +'<div class="fld"><label>Valuta</label><select name="targetCurrency">'+curOptions(d.targetCurrency)+'</select></div>'
+    +'<div class="fld full"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="preorder" style="width:16px" '+(d.preorder?'checked':'')+'> Förbeställning / kommande release</label></div>'
+    +'<div class="fld full"><label>Anteckning</label><textarea name="notes">'+esc(d.notes||'')+'</textarea></div>'
+    +'</div></form><div class="note-banner">'+ic('alert')+'<div>Efter att du sparat kan du lägga in priser per sajt via pris-ikonen — då beräknas köp-poäng och status mot målpris.</div></div></div>'
+    +'<div class="modal-foot">'+(w?'<button class="btn danger" onclick="deleteWatch(\''+w.id+'\',true)">'+ic('trash')+'</button>':'')+'<div style="flex:1"></div><button class="btn ghost" onclick="closeModal()">Avbryt</button><button class="btn primary" onclick="saveWatch(\''+(id||'')+'\')">'+ic('check')+'Spara</button></div>';
+  openModal(html);
+}
+function saveWatch(id){
+  const f=$('#watchFormEl');if(!f.name.value.trim()||f.targetPrice.value===''){toast('Namn och målpris krävs','err');return;}
+  const data={name:f.name.value.trim(),cat:f.cat.value,type:f.type.value,targetPrice:parseFloat(f.targetPrice.value),targetCurrency:f.targetCurrency.value,preorder:f.preorder.checked,notes:f.notes.value.trim()};
+  if(id){Object.assign(state.watch.find(x=>x.id===id),data);toast('Bevakning uppdaterad','ok');}
+  else{state.watch.push(Object.assign({id:uid(),prices:[]},data));toast('Bevakning tillagd','ok');}
+  save();closeModal();rerenderCurrent();if(currentPage!=='watchlist')navigate('watchlist');
+}
+function deleteWatch(id,fromForm){const w=state.watch.find(x=>x.id===id);if(!w||!confirm('Ta bort bevakning "'+w.name+'"?'))return;state.watch=state.watch.filter(x=>x.id!==id);save();if(fromForm)closeModal();rerenderCurrent();toast('Bevakning borttagen','warn');}
+function watchToCollection(id){
+  const w=state.watch.find(x=>x.id===id);if(!w)return;
+  state.items.push({id:uid(),name:w.name,cat:w.cat,set:'',type:w.type,condition:CONDITIONS[0],cert:'',qty:1,image:'',
+    buyPrice:w.targetPrice,buyCurrency:w.targetCurrency,buyShipping:0,buyDate:todayISO(),seller:'',tags:['från bevakning'],notes:w.notes||'',prices:w.prices||[]});
+  state.watch=state.watch.filter(x=>x.id!==id);save();rerenderCurrent();toast('Flyttad till samlingen','ok');
+}
+
+/* ============================================================
+   PAGE: SMART KÖPREKOMMENDATION
+   Optimerar tilldelning av objekt -> sajter för lägsta total
+   inkl. frakt (en gång per sajt), fri-frakt-trösklar och
+   est. moms/tull för sajter utanför EU.
+   ============================================================ */
+let recSel=new Set();
+function recCandidates(){
+  const list=[];
+  state.items.forEach(it=>{if(validPrices(it).length)list.push({ref:it,kind:'item',id:it.id,name:it.name,cat:it.cat,type:it.type});});
+  state.watch.forEach(w=>{if(validPrices(w).length)list.push({ref:w,kind:'watch',id:w.id,name:w.name,cat:w.cat,type:w.type});});
+  return list;
+}
+// per-objekt: siteId -> {goods(base, exkl frakt), landed(goods+ev. moms), entry}
+function itemSiteGoods(obj){
+  const m={};
+  validPrices(obj).forEach(p=>{
+    const site=siteById(p.siteId); if(!site)return;
+    const cur=p.currency||site.currency;
+    const goods=toBase(p.price,cur);
+    let vat=0; if(site.region==='NON_EU')vat=(state.settings.vatRate/100)*goods;
+    m[p.siteId]={goods:goods,landed:goods+vat,entry:p};
+  });
+  return m;
+}
+function optimizeOrder(selObjs){
+  if(!selObjs.length)return null;
+  const goodsMaps=selObjs.map(itemSiteGoods);
+  const siteIds=state.sites.map(s=>s.id);
+  const n=siteIds.length;
+  const assignFor=(allowed)=>{
+    const a=new Array(selObjs.length).fill(null);
+    for(let i=0;i<selObjs.length;i++){
+      let best=null,bestC=Infinity;
+      allowed.forEach(sid=>{const g=goodsMaps[i][sid];if(g&&g.landed<bestC){bestC=g.landed;best=sid;}});
+      if(best==null)return null; a[i]=best;
+    }
+    return a;
+  };
+  const costOf=(a)=>{
+    const pg={},pl={};
+    a.forEach((sid,i)=>{pg[sid]=(pg[sid]||0)+goodsMaps[i][sid].goods;pl[sid]=(pl[sid]||0)+goodsMaps[i][sid].landed;});
+    let total=0;const legs=[];
+    Object.keys(pg).forEach(sid=>{
+      const site=siteById(sid);
+      const thr=site.freeShippingThreshold||0;
+      const thrBase=thr>0?toBase(thr,site.currency):0;
+      const freeship=thr>0 && pg[sid]>=thrBase;
+      const shipBase=freeship?0:toBase(site.defaultShipping||0,site.currency);
+      const customsFee=site.region==='NON_EU'?Number(state.settings.customsFee||0):0;
+      const sub=pl[sid]+shipBase+customsFee;
+      total+=sub;
+      legs.push({sid:sid,goods:pg[sid],landed:pl[sid],ship:shipBase,customsFee:customsFee,freeship:freeship,thrBase:thrBase,
+        total:sub,idx:a.map((x,i)=>x===sid?i:-1).filter(x=>x>=0)});
+    });
+    legs.sort((x,y)=>y.total-x.total);
+    return {total:total,legs:legs,assign:a};
+  };
+  let best=null;
+  if(n<=16){
+    for(let mask=1;mask<(1<<n);mask++){
+      const allowed=[];for(let b=0;b<n;b++)if(mask&(1<<b))allowed.push(siteIds[b]);
+      const a=assignFor(allowed);if(!a)continue;
+      const c=costOf(a);
+      if(!best||c.total<best.total)best=c;
+    }
+  }else{const a=assignFor(siteIds);if(a)best=costOf(a);}
+  // single-site (billigaste enskilda sajt som täcker allt)
+  let single=null;
+  siteIds.forEach(sid=>{
+    const a=assignFor([sid]);if(!a)return;const c=costOf(a);
+    if(!single||c.total<single.total)single=c;
+  });
+  // per-vara billigast (alla sajter tillåtna)
+  const allA=assignFor(siteIds);
+  const split=allA?costOf(allA):null;
+  return {best:best,single:single,split:split,objs:selObjs};
+}
+function scenarioCard(title,sub,res,isBest){
+  if(!res)return '';
+  let legs=res.legs.map(l=>{
+    const site=siteById(l.sid);
+    const names=l.idx.map(i=>esc(recCurObjs[i].name)).join(', ');
+    return '<div class="legrow"><span class="sname"><span class="swatch" style="width:10px;height:10px;border-radius:50%;background:'+site.color+'"></span>'+esc(site.name)+'</span>'
+      +'<span class="num" style="font-weight:600">'+fmtBase(l.total)+'</span>'
+      +'<span class="sitems">'+l.idx.length+' st · frakt '+(l.freeship?'<b style="color:var(--gain)">fri</b>':fmtBase(l.ship))+(l.customsFee?' · tull '+fmtBase(l.customsFee):'')+'</span></div>'
+      +'<div class="dim" style="font-size:11px;margin:-3px 0 4px 18px">'+names+'</div>';
+  }).join('');
+  return '<div class="rec-scenario'+(isBest?' best':'')+'">'
+    +'<div class="rh"><span class="ttl">'+(isBest?ic('fire'):ic('cart'))+' '+title+'</span><span class="tot">'+fmtBase(res.total)+'</span></div>'
+    +'<div class="dim" style="font-size:12px;margin:-6px 0 12px">'+sub+'</div>'
+    +'<div class="rec-leg">'+legs+'</div></div>';
+}
+let recCurObjs=[];
+RENDERERS.recommend=function(){
+  const cands=recCandidates();
+  let html=sectionHead('Välj objekt att köpa','<button class="btn ghost sm" onclick="recSel=new Set();RENDERERS.recommend()">'+ic('x')+'Rensa val</button>');
+  html+='<div class="note-banner">'+ic('alert')+'<div>Markera objekt du vill köpa. CardTrack räknar ut den <b>billigaste kombinationen av sajter</b> — där frakt bara betalas en gång per sajt, fri-frakt-trösklar utnyttjas och est. moms/tull läggs på för sajter utanför EU. Antar 1 st per objekt.</div></div>';
+  if(!cands.length){
+    html+='<div class="card"><div class="empty"><div class="big">'+ic('cart')+'</div><h3>Inga prissatta objekt</h3><p>Lägg till priser på objekt i samlingen eller köplistan först.</p></div></div>';
+    $('#page-recommend').innerHTML=html;return;
+  }
+  html+='<div class="two-col"><div>';
+  cands.forEach(c=>{
+    const key=c.kind+':'+c.id;const sel=recSel.has(key);
+    const bb=bestBuyEntry(c.ref);
+    html+='<label class="checkrow'+(sel?' sel':'')+'"><input type="checkbox" data-key="'+key+'" '+(sel?'checked':'')+'>'
+      +'<span style="flex:1"><b style="font-size:13px">'+esc(c.name)+'</b><div class="dim" style="font-size:11px;margin-top:2px">'+catTag(c.cat)+' '+(c.kind==='watch'?'<span class="pill flat" style="font-size:9px">bevakning</span>':'')+'</div></span>'
+      +'<span class="num" style="font-size:13px;font-weight:600">'+(bb?fmtBase(bb.totalBase):'—')+'</span></label>';
+  });
+  html+='</div><div id="recResult"></div></div>';
+  $('#page-recommend').innerHTML=html;
+  $$('#page-recommend input[type=checkbox]').forEach(cb=>cb.onchange=()=>{
+    const k=cb.dataset.key; if(cb.checked)recSel.add(k);else recSel.delete(k);
+    cb.closest('.checkrow').classList.toggle('sel',cb.checked);
+    drawRecResult();
+  });
+  drawRecResult();
+};
+function drawRecResult(){
+  const box=$('#recResult');if(!box)return;
+  const sel=[...recSel];
+  if(sel.length<1){box.innerHTML='<div class="card"><div class="empty"><p>Välj minst ett objekt för att se köprekommendation.</p></div></div>';return;}
+  const objs=sel.map(k=>{const[kind,id]=k.split(':');return kind==='watch'?state.watch.find(w=>w.id===id):itemById(id);}).filter(Boolean);
+  recCurObjs=objs;
+  const r=optimizeOrder(objs);
+  if(!r||!r.best){box.innerHTML='<div class="card"><div class="empty"><p>Kunde inte räkna ut — saknar priser.</p></div></div>';return;}
+  let html='';
+  const saveVsSingle=r.single?r.single.total-r.best.total:0;
+  html+=scenarioCard('Bästa totalpris',r.best.legs.length>1?'Delad order på '+r.best.legs.length+' sajter — optimerad mot frakt och trösklar.':'Allt på en sajt blev billigast.',r.best,true);
+  if(r.single && r.single.legs[0] && (r.best.legs.length>1)){
+    html+=scenarioCard('Allt på en sajt',(siteById(r.single.legs[0].sid)||{}).name+' — enklast, en leverans.',r.single,false);
+  }
+  if(r.split && r.split.legs.length>r.best.legs.length){
+    html+=scenarioCard('Billigast per vara',r.split.legs.length+' separata leveranser — ofta dyrare pga frakt.',r.split,false);
+  }
+  // sammanfattning + frakttips
+  let tips='';
+  r.best.legs.forEach(l=>{
+    if(!l.freeship && l.thrBase>0){
+      const diff=l.thrBase-l.goods;
+      if(diff>0 && diff<l.ship*2.5)tips+='<div class="legrow"><span class="sname">'+ic('target')+esc((siteById(l.sid)||{}).name)+'</span><span class="sitems">Handla för <b>'+fmtBase(diff)+'</b> till → fri frakt → spara '+fmtBase(l.ship)+'</span></div>';
+    }
+  });
+  html='<div class="card" style="margin-bottom:14px"><div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><b style="font-family:var(--display);font-size:15px">Rekommendation</b>'
+    +(saveVsSingle>0.5?'<span class="pill up">Sparar '+fmtBase(saveVsSingle)+' vs. en sajt</span>':'<span class="pill flat">En sajt är redan billigast</span>')+'</div>'
+    +'<div class="dim" style="font-size:12.5px;margin-top:6px">'+objs.length+' objekt · lägsta total <b style="color:var(--primary)">'+fmtBase(r.best.total)+'</b> inkl. frakt'+(r.best.legs.some(l=>l.customsFee)?' & est. moms/tull':'')+'.</div>'
+    +(tips?'<div class="rec-leg" style="margin-top:12px">'+tips+'</div>':'')+'</div>'+html;
+  box.innerHTML=html;
+}
+
+/* ============================================================
+   PAGE: PORTFÖLJ
+   ============================================================ */
+RENDERERS.portfolio=function(){
+  const ps=portfolioStats();
+  const cb=categoryBreakdown();
+  const priced=state.items.filter(i=>itemMarketBase(i)!=null);
+  const byProfit=priced.slice().sort((a,b)=>(itemProfitBase(b)||0)-(itemProfitBase(a)||0));
+  const best=byProfit.slice(0,3), worst=byProfit.slice(-3).reverse();
+  let html='<div class="grid kpis">'
+    + kpi('Totalt värde',fmtBase(ps.market),pillPct(ps.pct),'trending')
+    + kpi('Investerat',fmtBase(ps.cost),'<span class="dim">'+ps.count+' poster · '+ps.units+' enheter</span>','chart')
+    + kpi('Orealiserad vinst',(ps.profit>=0?'+':'')+fmtBase(ps.profit),'<span class="'+(ps.profit>=0?'gain':'loss')+'">'+(ps.pct>=0?'+':'')+ps.pct.toFixed(1)+'%</span>','fire')
+    + kpi('Prissatt andel',ps.priced+' / '+ps.count,'<span class="dim">'+ps.unpriced+' utan pris</span>','target')
+    +'</div>';
+  html+='<div class="card" style="margin-top:18px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><b style="font-family:var(--display)">Värdeutveckling (12 mån)</b>'+pillPct(ps.pct)+'</div><div class="chart-box"><canvas id="portChart"></canvas></div></div>';
+
+  // Kategorianalys
+  html+='<div class="two-col" style="margin-top:18px"><div class="card"><b style="font-family:var(--display)">Vinst per kategori</b><div style="margin-top:14px;display:flex;flex-direction:column;gap:12px">';
+  if(cb.length){const max=Math.max(...cb.map(c=>Math.abs(c.profit)),1);
+    cb.forEach(c=>{const pc=c.cost>0?c.profit/c.cost*100:0;const w=Math.abs(c.profit)/max*100;
+      html+='<div><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>'+catTag(c.cat)+'<span class="dim" style="margin-left:6px">'+c.count+' st</span></span><span class="num '+(c.profit>=0?'gain':'loss')+'">'+(c.profit>=0?'+':'')+fmtBase(c.profit)+' ('+(pc>=0?'+':'')+pc.toFixed(0)+'%)</span></div>'
+        +'<div class="bar"><span style="width:'+w.toFixed(1)+'%;background:'+(c.profit>=0?'var(--gain)':'var(--loss)')+'"></span></div></div>';});
+  }else html+='<div class="empty"><p>Ingen prissatt data.</p></div>';
+  html+='</div></div>';
+
+  // Bästa / sämsta
+  html+='<div class="card"><b style="font-family:var(--display)">Bästa & sämsta innehav</b><div style="margin-top:12px">';
+  const row=(it)=>{const p=itemProfitBase(it),pc=itemCostBase(it)>0?p/itemCostBase(it)*100:0;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px"><span class="swatch" style="width:8px;height:8px;border-radius:50%;background:'+catColor(it.cat)+'"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(it.name)+'</span><span class="num '+(p>=0?'gain':'loss')+'">'+(p>=0?'+':'')+fmtBase(p)+'</span><span class="pill '+(pc>=0?'up':'down')+'" style="font-size:9px">'+(pc>=0?'+':'')+pc.toFixed(0)+'%</span></div>';};
+  if(best.length){html+='<div class="dim" style="font-size:10px;letter-spacing:.08em;margin-bottom:4px">VINNARE</div>'+best.map(row).join('');
+    html+='<div class="dim" style="font-size:10px;letter-spacing:.08em;margin:12px 0 4px">EFTERSLÄNTRARE</div>'+worst.map(row).join('');}
+  else html+='<div class="empty"><p>Ingen prissatt data.</p></div>';
+  html+='</div></div></div>';
+
+  // Sälj-signaler
+  const signals=priced.map(it=>({it:it,score:buyScore(it),profit:itemProfitBase(it)})).filter(s=>s.score!=null && s.score<=30 && s.profit>0).sort((a,b)=>a.score-b.score);
+  html+='<div class="card" style="margin-top:18px"><b style="font-family:var(--display)">'+ic('fire')+' Sälj-signaler</b><div class="dim" style="font-size:12px;margin:4px 0 12px">Innehav nära historisk topp med vinst — kan vara läge att realisera.</div>';
+  if(signals.length){html+='<div class="rec-leg">';
+    signals.forEach(s=>{html+='<div class="legrow"><span class="sname">'+catTag(s.it.cat)+esc(s.it.name)+'</span><span class="num gain">+'+fmtBase(s.profit)+'</span><span class="sitems">pris nära topp · köp-poäng '+s.score+'</span></div>';});
+    html+='</div>';}
+  else html+='<div class="dim" style="font-size:12.5px">Inga tydliga sälj-signaler just nu — inget innehav ligger nära historisk topp.</div>';
+  html+='</div>';
+  $('#page-portfolio').innerHTML=html;
+  drawPortfolioChart('portChart');
+};
+
+/* ============================================================
+   PAGE: PRISANALYS — heat map, rörelser, köpfönster
+   ============================================================ */
+let analysisItem=null;
+RENDERERS.analysis=function(){
+  const cb=categoryBreakdown();
+  // movers: jämför senaste pris mot ~30 dagar tidigare per objekt
+  const movers=[];
+  state.items.concat(state.watch).forEach(o=>{
+    const ref=o.id;const h=state.priceHistory.filter(x=>x.itemRef===ref).sort((a,b)=>a.date.localeCompare(b.date));
+    if(h.length<2)return;
+    const last=h[h.length-1];const cutoff=daysAgo(30);
+    let prev=h.filter(x=>x.date<=cutoff).pop()||h[0];
+    const lv=toBase(last.price,last.currency),pv=toBase(prev.price,prev.currency);
+    if(pv<=0)return;const pct=(lv-pv)/pv*100;
+    movers.push({name:o.name,cat:o.cat,pct:pct,now:lv});
+  });
+  movers.sort((a,b)=>b.pct-a.pct);
+  const up=movers.slice(0,5),down=movers.slice(-5).reverse();
+
+  let html=sectionHead('Marknadsvärme per kategori','');
+  html+='<div class="heat">';
+  if(cb.length)cb.forEach(c=>{const pc=c.cost>0?c.profit/c.cost*100:0;
+    html+='<div class="cell" style="background:'+hexA(pc>=0?'#2fb070':'#e0524e',clamp(Math.abs(pc)/60,.06,.32))+';border-color:'+hexA(pc>=0?'#2fb070':'#e0524e',.4)+'">'
+      +'<div class="s">'+esc(shortCat(catName(c.cat)))+'</div><div class="v '+(pc>=0?'gain':'loss')+'">'+(pc>=0?'+':'')+pc.toFixed(0)+'%</div>'
+      +'<div class="dim" style="font-size:10px;margin-top:2px">'+fmtBase(c.market)+'</div></div>';});
+  else html+='<div class="dim">Ingen data.</div>';
+  html+='</div>';
+
+  // Rörelser
+  html+='<div class="two-col" style="margin-top:20px"><div class="card"><b style="font-family:var(--display)" class="gain">'+ic('trending')+' Största uppgångar (30 d)</b><div style="margin-top:10px">';
+  if(up.length&&up[0].pct>0)up.filter(m=>m.pct>0).forEach(m=>html+=moverRow(m));else html+='<div class="dim" style="font-size:12.5px">Ingen uppgång registrerad.</div>';
+  html+='</div></div><div class="card"><b style="font-family:var(--display)" class="loss">'+ic('trending')+' Största nedgångar (30 d)</b><div style="margin-top:10px">';
+  if(down.length&&down[0].pct<0)down.filter(m=>m.pct<0).forEach(m=>html+=moverRow(m));else html+='<div class="dim" style="font-size:12.5px">Ingen nedgång registrerad.</div>';
+  html+='</div></div></div>';
+
+  // Prishistorik-graf med objektväljare
+  const withHist=state.items.concat(state.watch).filter(o=>state.priceHistory.some(h=>h.itemRef===o.id));
+  if(!analysisItem&&withHist.length)analysisItem=withHist[0].id;
+  html+='<div class="card" style="margin-top:18px"><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px"><b style="font-family:var(--display)">Prishistorik per sajt</b>'
+    +'<select id="anaSel" class="mini">'+withHist.map(o=>'<option value="'+o.id+'" '+(o.id===analysisItem?'selected':'')+'>'+esc(o.name)+'</option>').join('')+'</select></div>'
+    +'<div class="chart-box"><canvas id="anaChart"></canvas></div></div>';
+
+  // Köpfönster (säsongsmönster — generell vägledning)
+  html+='<div class="card" style="margin-top:18px"><b style="font-family:var(--display)">'+ic('clock')+' Köpfönster & säsong</b>'
+    +'<div class="legend" style="margin-top:10px"></div>'
+    +'<table class="mini-tbl" style="width:100%;margin-top:6px;font-size:12.5px;border-collapse:collapse">'
+    +seasonRow('Jan–Feb','Lågsäsong efter jul','Ofta lägst priser — bra köpläge','up')
+    +seasonRow('Mar–Maj','Stabilt','Normala priser, bevaka restocks','flat')
+    +seasonRow('Jun–Aug','Sommar-dipp','Lugn marknad, fynd på begagnat','up')
+    +seasonRow('Sep–Okt','Nya set släpps','Förorder & hype — vänta på prisras efter release','down')
+    +seasonRow('Nov–Dec','Julrush','Högst efterfrågan & priser — sälj hellre än köp','down')
+    +'</table><div class="dim" style="font-size:11px;margin-top:8px">Generella mönster för TCG/samlarkort — din egen prishistorik ovan är alltid mest tillförlitlig.</div></div>';
+  $('#page-analysis').innerHTML=html;
+  const sel=$('#anaSel');if(sel)sel.onchange=e=>{analysisItem=e.target.value;drawHistoryChart('anaChart',analysisItem);};
+  if(analysisItem)setTimeout(()=>drawHistoryChart('anaChart',analysisItem),40);
+};
+function moverRow(m){return '<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px"><span class="swatch" style="width:8px;height:8px;border-radius:50%;background:'+catColor(m.cat)+'"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(m.name)+'</span><span class="num">'+fmtBase(m.now)+'</span>'+pillPct(m.pct)+'</div>';}
+function seasonRow(period,label,tip,dir){return '<tr style="border-bottom:1px solid var(--border-soft)"><td style="padding:8px 6px;font-weight:600;white-space:nowrap">'+period+'</td><td style="padding:8px 6px"><span class="pill '+(dir==='up'?'up':dir==='down'?'down':'flat')+'">'+label+'</span></td><td style="padding:8px 6px" class="dim">'+tip+'</td></tr>';}
+
+/* ============================================================
+   PAGE: AI-SKANNER (Claude API)
+   ============================================================ */
+let aiBusy=false;
+RENDERERS.ai=function(){
+  const hasKey=!!(state.settings.apiKey&&state.settings.apiKey.trim());
+  let html=sectionHead('AI-skanner','<button class="btn ghost sm" onclick="navigate(\'settings\')">'+ic('cog')+'API-nyckel</button>');
+  html+='<div class="note-banner'+(hasKey?'':' warn')+'">'+ic(hasKey?'spark':'alert')+'<div>'
+    +(hasKey?'Ansluten med din egen Claude-API-nyckel (sparas lokalt). AI:n analyserar priser du matar in eller hjälper dig bedöma marknadsläget — den hittar inte på faktiska butikspriser.'
+            :'Ingen API-nyckel angiven. Lägg in din egen nyckel från console.anthropic.com under Inställningar för att aktivera AI-analys.')+'</div></div>';
+
+  // Snabbanalys av objekt i samling/bevakning
+  const objs=recCandidates();
+  html+='<div class="two-col"><div class="card"><b style="font-family:var(--display)">Analysera prisläge</b>'
+    +'<div class="dim" style="font-size:12px;margin:4px 0 12px">Välj ett objekt — AI:n bedömer om bästa nuvarande pris är bra utifrån din prishistorik.</div>'
+    +'<div class="fld"><label>Objekt</label><select id="aiObj">'+objs.map(o=>'<option value="'+o.kind+':'+o.id+'">'+esc(o.name)+'</option>').join('')+'</select></div>'
+    +'<button class="btn primary" style="margin-top:10px" onclick="aiAnalyze()" '+(hasKey&&objs.length?'':'disabled')+'>'+ic('spark')+'Analysera med AI</button></div>';
+  // Fri prompt
+  html+='<div class="card"><b style="font-family:var(--display)">Fråga AI:n</b>'
+    +'<div class="dim" style="font-size:12px;margin:4px 0 12px">T.ex. "Är 529 kr ett bra pris för en 151 ETB?" eller "Vilket Pokémon-set är bäst att investera i nu?"</div>'
+    +'<textarea id="aiPrompt" rows="4" placeholder="Skriv din fråga…" style="width:100%;resize:vertical"></textarea>'
+    +'<button class="btn primary" style="margin-top:10px" onclick="aiAsk()" '+(hasKey?'':'disabled')+'>'+ic('spark')+'Skicka</button></div></div>';
+  html+='<div class="card" id="aiOut" style="margin-top:16px;display:none"></div>';
+  $('#page-ai').innerHTML=html;
+};
+function aiOut(html){const o=$('#aiOut');o.style.display='';o.innerHTML=html;}
+function aiLoading(){aiOut('<div style="display:flex;align-items:center;gap:10px;color:var(--text-dim)"><span class="spin">'+ic('refresh')+'</span> AI:n tänker…</div>');}
+async function callClaude(messages,system){
+  const s=state.settings;
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':s.apiKey.trim(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:s.aiModel||'claude-sonnet-4-20250514',max_tokens:1024,system:system||'',messages:messages})
+  });
+  if(!res.ok){let t='';try{t=(await res.json()).error.message;}catch(e){t='HTTP '+res.status;}throw new Error(t);}
+  const data=await res.json();
+  return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+}
+function aiContext(obj){
+  const v=validPrices(obj).map(p=>{const s=siteById(p.siteId);return (s?s.name:'?')+': '+fmt(p.price,p.currency)+' ('+fmtBase(toBase(p.price,p.currency))+')';});
+  const hist=state.priceHistory.filter(h=>h.itemRef===obj.id).map(h=>toBase(h.price,h.currency));
+  const lo=hist.length?Math.min(...hist):null,hi=hist.length?Math.max(...hist):null;
+  return 'Objekt: '+obj.name+' ('+catName(obj.cat)+', '+(obj.type||'')+')\n'
+    +'Aktuella priser:\n'+v.join('\n')+'\n'
+    +(lo!=null?'Historiskt spann (basvaluta '+base()+'): '+fmtBase(lo)+' – '+fmtBase(hi):'Ingen prishistorik.');
+}
+async function aiAnalyze(){
+  if(aiBusy)return;const k=$('#aiObj').value;const[kind,id]=k.split(':');
+  const obj=kind==='watch'?state.watch.find(w=>w.id===id):itemById(id);if(!obj)return;
+  aiBusy=true;aiLoading();
+  try{
+    const txt=await callClaude([{role:'user',content:aiContext(obj)+'\n\nBedöm kort (svenska, max 150 ord): är bästa nuvarande pris bra/dåligt utifrån historiken? Ge en köp/avvakta-rekommendation och en mening om risk.'}],
+      'Du är en erfaren analytiker av samlarkortsmarknaden. Var konkret, ärlig och hitta aldrig på priser utöver det som anges.');
+    aiOut('<b style="font-family:var(--display)">'+ic('spark')+' Analys: '+esc(obj.name)+'</b><div style="margin-top:10px;white-space:pre-wrap;font-size:13.5px;line-height:1.6">'+esc(txt)+'</div>');
+  }catch(e){aiOut('<div class="loss">'+ic('alert')+' Fel: '+esc(e.message)+'</div><div class="dim" style="font-size:12px;margin-top:8px">Kontrollera API-nyckeln i Inställningar. Vissa nätverk/webbläsare blockerar direktanrop (CORS) — då behövs scraping-servern som proxy (nästa steg).</div>');}
+  aiBusy=false;
+}
+async function aiAsk(){
+  if(aiBusy)return;const q=$('#aiPrompt').value.trim();if(!q){toast('Skriv en fråga','warn');return;}
+  aiBusy=true;aiLoading();
+  try{
+    const txt=await callClaude([{role:'user',content:q}],'Du är en hjälpsam expert på samlarkort (Pokémon, Lorcana, MTG, sportkort m.m.) och marknadsvärdering. Svara på svenska, konkret och ärligt. Hitta aldrig på exakta butikspriser — resonera om marknaden.');
+    aiOut('<b style="font-family:var(--display)">'+ic('spark')+' Svar</b><div style="margin-top:10px;white-space:pre-wrap;font-size:13.5px;line-height:1.6">'+esc(txt)+'</div>');
+  }catch(e){aiOut('<div class="loss">'+ic('alert')+' Fel: '+esc(e.message)+'</div><div class="dim" style="font-size:12px;margin-top:8px">Kontrollera API-nyckeln. CORS-blockering? Använd scraping-servern som proxy (nästa steg).</div>');}
+  aiBusy=false;
+}
+
+/* ============================================================
+   PAGE: PRISHISTORIK
+   ============================================================ */
+let histFilter={item:'all',site:'all'};
+RENDERERS.history=function(){
+  let rows=state.priceHistory.slice().sort((a,b)=>b.date.localeCompare(a.date)||0);
+  if(histFilter.item!=='all')rows=rows.filter(h=>h.itemRef===histFilter.item);
+  if(histFilter.site!=='all')rows=rows.filter(h=>h.siteId===histFilter.site);
+  const itemNames={};state.priceHistory.forEach(h=>itemNames[h.itemRef]=h.name);
+  let html=sectionHead('Prishistorik','<span class="dim" style="font-size:12px">'+rows.length+' noteringar</span>');
+  html+='<div class="toolbar"><select id="hItem" class="mini"><option value="all">Alla objekt</option>'
+    +Object.keys(itemNames).map(id=>'<option value="'+id+'" '+(id===histFilter.item?'selected':'')+'>'+esc(itemNames[id])+'</option>').join('')+'</select>'
+    +'<select id="hSite" class="mini"><option value="all">Alla sajter</option>'+state.sites.map(s=>'<option value="'+s.id+'" '+(s.id===histFilter.site?'selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select></div>';
+  if(rows.length){
+    html+='<div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>Datum</th><th>Objekt</th><th>Sajt</th><th class="right">Pris</th><th class="right">I '+base()+'</th><th>Källa</th></tr></thead><tbody>';
+    rows.slice(0,300).forEach(h=>{const s=siteById(h.siteId);
+      html+='<tr><td class="num dim">'+h.date+'</td><td>'+esc(h.name)+'</td><td><span style="color:'+(s?s.color:'#888')+';font-weight:600;font-size:12px">'+(s?esc(s.name):'—')+'</span></td>'
+        +'<td class="num right">'+fmt(h.price,h.currency)+'</td><td class="num right">'+fmtBase(toBase(h.price,h.currency))+'</td>'
+        +'<td><span class="pill '+(h.auto?'up':'flat')+'" style="font-size:9px">'+(h.auto?'AUTO':'MANUELL')+'</span></td></tr>';});
+    html+='</tbody></table></div></div>';
+    if(rows.length>300)html+='<div class="dim" style="font-size:12px;margin-top:8px">Visar senaste 300 av '+rows.length+'.</div>';
+  }else html+='<div class="card"><div class="empty"><div class="big">'+ic('clock')+'</div><h3>Ingen prishistorik</h3><p>Varje gång du uppdaterar ett pris loggas det här.</p></div></div>';
+  $('#page-history').innerHTML=html;
+  const i=$('#hItem'),s=$('#hSite');
+  if(i)i.onchange=e=>{histFilter.item=e.target.value;RENDERERS.history();};
+  if(s)s.onchange=e=>{histFilter.site=e.target.value;RENDERERS.history();};
+};
+
+/* ============================================================
+   PAGE: SAJTER
+   ============================================================ */
+RENDERERS.sites=function(){
+  let html=sectionHead('Sajter','<button class="btn primary sm" onclick="siteForm()">'+ic('plus')+'Ny sajt</button>');
+  html+='<div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>Sajt</th><th>Land</th><th>Valuta</th><th class="right">Frakt</th><th class="right">Fri frakt över</th><th>Betyg</th><th class="right">Åtgärder</th></tr></thead><tbody>';
+  state.sites.forEach(s=>{
+    const used=state.items.concat(state.watch).reduce((n,o)=>n+((o.prices||[]).some(p=>p.siteId===s.id&&p.price!=null)?1:0),0);
+    html+='<tr><td><div style="display:flex;align-items:center;gap:9px"><span class="site-badge" style="background:'+hexA(s.color,.16)+';color:'+s.color+';border:1px solid '+hexA(s.color,.4)+'">'+esc(s.icon||s.name.slice(0,2))+'</span><div><b style="font-size:13px">'+esc(s.name)+'</b><div class="dim" style="font-size:11px">'+used+' produkter prissatta'+(s.region==='NON_EU'?' · <span class="loss">utanför EU</span>':'')+'</div></div></div></td>'
+      +'<td>'+esc(s.country||'—')+'</td><td class="num">'+s.currency+'</td>'
+      +'<td class="num right">'+(s.defaultShipping?fmt(s.defaultShipping,s.currency):'<span class="gain">fri</span>')+'</td>'
+      +'<td class="num right">'+(s.freeShippingThreshold>0?fmt(s.freeShippingThreshold,s.currency):'<span class="dim">—</span>')+'</td>'
+      +'<td>'+stars(s.rating||0)+'</td>'
+      +'<td class="right"><div class="row-actions">'
+      +(s.url?'<a class="iconbtn" href="'+esc(s.url)+'" target="_blank" rel="noopener" title="Besök">'+ic('external')+'</a>':'')
+      +'<button class="iconbtn" title="Redigera" onclick="siteForm(\''+s.id+'\')">'+ic('edit')+'</button>'
+      +'<button class="iconbtn del" title="Ta bort" onclick="deleteSite(\''+s.id+'\')">'+ic('trash')+'</button></div></td></tr>';
+    if(s.notes||s.discountCodes&&s.discountCodes.length||s.memberBenefits){
+      html+='<tr class="subrow"><td colspan="7" style="padding-top:0"><div class="dim" style="font-size:11.5px;display:flex;gap:14px;flex-wrap:wrap">'
+        +(s.notes?'<span>'+ic('alert')+' '+esc(s.notes)+'</span>':'')
+        +((s.discountCodes&&s.discountCodes.length)?'<span>'+ic('tag')+' Koder: '+s.discountCodes.map(esc).join(', ')+'</span>':'')
+        +(s.memberBenefits?'<span>'+ic('spark')+' '+esc(s.memberBenefits)+'</span>':'')+'</div></td></tr>';
+    }
+  });
+  html+='</tbody></table></div></div>';
+  $('#page-sites').innerHTML=html;
+};
+function stars(n){let s='';for(let i=1;i<=5;i++)s+='<span style="color:'+(i<=n?'var(--primary)':'var(--text-faint)')+'">★</span>';return '<span style="font-size:12px">'+s+'</span>';}
+function siteForm(id){
+  const s=id?siteById(id):null;
+  const d=s||{currency:'SEK',region:'EU',rating:4,color:'#1f6fb2',defaultShipping:49,freeShippingThreshold:0,discountCodes:[]};
+  let html='<div class="modal-head"><h3>'+(s?'Redigera sajt':'Ny sajt')+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+    +'<div class="modal-body"><form id="siteFormEl"><div class="form-grid">'
+    +'<div class="fld"><label>Namn <span class="req">*</span></label><input name="name" required value="'+esc(d.name||'')+'"></div>'
+    +'<div class="fld"><label>Ikon (kort)</label><input name="icon" maxlength="3" value="'+esc(d.icon||'')+'" placeholder="CM"></div>'
+    +'<div class="fld full"><label>URL</label><input name="url" type="url" value="'+esc(d.url||'')+'" placeholder="https://…"></div>'
+    +'<div class="fld"><label>Valuta</label><select name="currency">'+curOptions(d.currency)+'</select></div>'
+    +'<div class="fld"><label>Land (kod)</label><input name="country" value="'+esc(d.country||'')+'" placeholder="SE"></div>'
+    +'<div class="fld"><label>Region</label><select name="region"><option value="EU" '+(d.region==='EU'?'selected':'')+'>Inom EU</option><option value="NON_EU" '+(d.region==='NON_EU'?'selected':'')+'>Utanför EU (moms/tull)</option></select></div>'
+    +'<div class="fld"><label>Betyg (0–5)</label><input name="rating" type="number" min="0" max="5" step="1" value="'+(d.rating!=null?d.rating:4)+'"></div>'
+    +'<div class="fld"><label>Standardfrakt</label><input name="defaultShipping" type="number" step="0.01" value="'+(d.defaultShipping!=null?d.defaultShipping:0)+'"></div>'
+    +'<div class="fld"><label>Fri frakt över (0 = aldrig)</label><input name="freeShippingThreshold" type="number" step="0.01" value="'+(d.freeShippingThreshold||0)+'"></div>'
+    +'<div class="fld"><label>Färg</label><input name="color" type="color" value="'+esc(d.color||'#1f6fb2')+'" style="height:40px;padding:4px"></div>'
+    +'<div class="fld full"><label>Rabattkoder (komma)</label><input name="discountCodes" value="'+esc((d.discountCodes||[]).join(', '))+'" placeholder="SOMMAR10, FRAKTFRITT"></div>'
+    +'<div class="fld full"><label>Medlemsförmåner</label><input name="memberBenefits" value="'+esc(d.memberBenefits||'')+'" placeholder="t.ex. stamkundspoäng"></div>'
+    +'<div class="fld full"><label>Anteckning / tillförlitlighet</label><textarea name="notes">'+esc(d.notes||'')+'</textarea></div>'
+    +'</div></form></div>'
+    +'<div class="modal-foot">'+(s?'<button class="btn danger" onclick="deleteSite(\''+s.id+'\',true)">'+ic('trash')+'</button>':'')+'<div style="flex:1"></div><button class="btn ghost" onclick="closeModal()">Avbryt</button><button class="btn primary" onclick="saveSite(\''+(id||'')+'\')">'+ic('check')+'Spara</button></div>';
+  openModal(html);
+}
+function saveSite(id){
+  const f=$('#siteFormEl');if(!f.name.value.trim()){toast('Namn krävs','err');return;}
+  const data={name:f.name.value.trim(),icon:f.icon.value.trim(),url:f.url.value.trim(),currency:f.currency.value,country:f.country.value.trim().toUpperCase(),
+    region:f.region.value,rating:parseInt(f.rating.value)||0,defaultShipping:parseFloat(f.defaultShipping.value)||0,
+    freeShippingThreshold:parseFloat(f.freeShippingThreshold.value)||0,color:f.color.value,
+    discountCodes:f.discountCodes.value.split(',').map(x=>x.trim()).filter(Boolean),memberBenefits:f.memberBenefits.value.trim(),notes:f.notes.value.trim()};
+  if(id){Object.assign(siteById(id),data);toast('Sajt uppdaterad','ok');}
+  else{state.sites.push(Object.assign({id:uid()},data));toast('Sajt tillagd','ok');}
+  save();closeModal();rerenderCurrent();if(currentPage!=='sites')navigate('sites');
+}
+function deleteSite(id,fromForm){
+  const s=siteById(id);if(!s)return;
+  if(!confirm('Ta bort sajten "'+s.name+'"? Priser kopplade till den tas också bort.'))return;
+  state.sites=state.sites.filter(x=>x.id!==id);
+  state.items.concat(state.watch).forEach(o=>{o.prices=(o.prices||[]).filter(p=>p.siteId!==id);});
+  state.priceHistory=state.priceHistory.filter(h=>h.siteId!==id);
+  save();if(fromForm)closeModal();rerenderCurrent();toast('Sajt borttagen','warn');
+}
+
+/* ============================================================
+   PAGE: KATEGORIER
+   ============================================================ */
+RENDERERS.categories=function(){
+  let html=sectionHead('Kategorier','<button class="btn primary sm" onclick="catForm()">'+ic('plus')+'Ny kategori</button>');
+  html+='<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">';
+  state.categories.forEach(c=>{
+    const cnt=state.items.filter(i=>i.cat===c.id).length;
+    const mv=state.items.filter(i=>i.cat===c.id).reduce((s,i)=>s+(itemMarketBase(i)||0),0);
+    html+='<div class="card hover" style="border-top:3px solid '+c.color+'"><div style="display:flex;align-items:center;justify-content:space-between"><b style="font-family:var(--display)">'+esc(c.name)+'</b><span class="swatch" style="width:16px;height:16px;border-radius:50%;background:'+c.color+'"></span></div>'
+      +'<div class="dim" style="font-size:12px;margin-top:6px">'+cnt+' objekt · '+fmtBase(mv)+'</div>'
+      +'<div class="row-actions" style="margin-top:12px"><button class="iconbtn" onclick="catForm(\''+c.id+'\')">'+ic('edit')+'</button><button class="iconbtn del" onclick="deleteCat(\''+c.id+'\')">'+ic('trash')+'</button></div></div>';
+  });
+  html+='</div>';
+  $('#page-categories').innerHTML=html;
+};
+function catForm(id){
+  const c=id?catById(id):null;const d=c||{color:'#f5c451'};
+  let html='<div class="modal-head"><h3>'+(c?'Redigera kategori':'Ny kategori')+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+    +'<div class="modal-body"><form id="catFormEl"><div class="form-grid">'
+    +'<div class="fld"><label>Namn <span class="req">*</span></label><input name="name" required value="'+esc(d.name||'')+'"></div>'
+    +'<div class="fld"><label>Färg</label><input name="color" type="color" value="'+esc(d.color)+'" style="height:40px;padding:4px"></div>'
+    +'</div></form></div>'
+    +'<div class="modal-foot">'+(c?'<button class="btn danger" onclick="deleteCat(\''+c.id+'\',true)">'+ic('trash')+'</button>':'')+'<div style="flex:1"></div><button class="btn ghost" onclick="closeModal()">Avbryt</button><button class="btn primary" onclick="saveCat(\''+(id||'')+'\')">'+ic('check')+'Spara</button></div>';
+  openModal(html);
+}
+function saveCat(id){
+  const f=$('#catFormEl');if(!f.name.value.trim()){toast('Namn krävs','err');return;}
+  const data={name:f.name.value.trim(),color:f.color.value};
+  if(id){Object.assign(catById(id),data);toast('Kategori uppdaterad','ok');}
+  else{state.categories.push(Object.assign({id:uid()},data));toast('Kategori tillagd','ok');}
+  save();closeModal();rerenderCurrent();if(currentPage!=='categories')navigate('categories');
+}
+function deleteCat(id,fromForm){
+  const c=catById(id);if(!c)return;
+  const cnt=state.items.filter(i=>i.cat===id).length;
+  if(!confirm('Ta bort kategorin "'+c.name+'"?'+(cnt?' '+cnt+' objekt blir utan kategori.':'')))return;
+  state.categories=state.categories.filter(x=>x.id!==id);
+  save();if(fromForm)closeModal();rerenderCurrent();toast('Kategori borttagen','warn');
+}
+
+/* ============================================================
+   PAGE: INSTÄLLNINGAR
+   ============================================================ */
+RENDERERS.settings=function(){
+  const s=state.settings;
+  let html=sectionHead('Inställningar','');
+
+  // Basvaluta + växelkurser
+  html+='<div class="card"><b style="font-family:var(--display)">Valuta & växelkurser</b>'
+    +'<div class="dim" style="font-size:12px;margin:4px 0 12px">Kurser anges som värde i basvaluta per 1 enhet. Uppdatera manuellt eller hämta dagskurser.</div>'
+    +'<div class="form-grid"><div class="fld"><label>Basvaluta</label><select id="setBase">'+curOptions(s.baseCurrency)+'</select></div></div>'
+    +'<div class="form-grid" style="margin-top:10px">';
+  CURRENCIES.forEach(c=>{html+='<div class="fld"><label>1 '+c+' = ? '+s.baseCurrency+'</label><input type="number" step="0.0001" data-rate="'+c+'" value="'+(s.rates[c]||1)+'" '+(c===s.baseCurrency?'disabled':'')+'></div>';});
+  html+='</div><div style="display:flex;gap:8px;align-items:center;margin-top:12px"><button class="btn ghost sm" onclick="saveRates()">'+ic('check')+'Spara kurser</button><button class="btn ghost sm" onclick="fetchRates()">'+ic('refresh')+'Hämta dagskurser</button>'
+    +'<span class="dim" style="font-size:11px">'+(s.ratesUpdated?'Uppdaterad '+s.ratesUpdated:'Aldrig uppdaterad via API')+'</span></div></div>';
+
+  // Import/tull
+  html+='<div class="card" style="margin-top:16px"><b style="font-family:var(--display)">Import: moms & tull</b>'
+    +'<div class="dim" style="font-size:12px;margin:4px 0 12px">Uppskattning som läggs på köp från sajter utanför EU i totalpriskalkyler.</div>'
+    +'<div class="form-grid"><div class="fld"><label>Moms vid import (%)</label><input type="number" step="1" id="setVat" value="'+s.vatRate+'"></div>'
+    +'<div class="fld"><label>Tull/hanteringsavgift per försändelse ('+s.baseCurrency+')</label><input type="number" step="1" id="setCustoms" value="'+s.customsFee+'"></div></div>'
+    +'<button class="btn ghost sm" style="margin-top:12px" onclick="saveImport()">'+ic('check')+'Spara</button></div>';
+
+  // AI / API
+  html+='<div class="card" style="margin-top:16px"><b style="font-family:var(--display)">AI & Claude API</b>'
+    +'<div class="dim" style="font-size:12px;margin:4px 0 12px">Din API-nyckel lagras endast lokalt på din enhet. Hämta nyckel på console.anthropic.com.</div>'
+    +'<div class="form-grid"><div class="fld full"><label>API-nyckel</label><input type="password" id="setKey" value="'+esc(s.apiKey||'')+'" placeholder="sk-ant-…"></div>'
+    +'<div class="fld"><label>Modell</label><select id="setModel">'
+    +['claude-sonnet-4-20250514','claude-opus-4-20250514','claude-3-5-haiku-20241022'].map(m=>'<option '+(m===s.aiModel?'selected':'')+'>'+m+'</option>').join('')+'</select></div>'
+    +'<div class="fld"><label>Scraping-server URL</label><input id="setServer" value="'+esc(s.serverUrl||'')+'"></div></div>'
+    +'<button class="btn ghost sm" style="margin-top:12px" onclick="saveApi()">'+ic('check')+'Spara</button></div>';
+
+  // Säkerhet / applås
+  html+='<div class="card" style="margin-top:16px"><b style="font-family:var(--display)">Säkerhet — applås</b>'
+    +'<div class="dim" style="font-size:12px;margin:4px 0 12px">Lås appen med en kod. Då krypteras all data lokalt (AES-256-GCM, nyckel härledd med PBKDF2/SHA-256, 210 000 iterationer) och kräver koden för att läsas — även om någon kommer åt din enhet.</div>'
+    +'<div class="note-banner">'+ic('alert')+'<div>Detta skyddar data <b>lokalt på denna enhet</b>. Koden går inte att återställa — glömmer du den går datan inte att låsa upp. Riktig inloggning för flera användare/enheter sker via scraping-/backend-servern (nästa steg).</div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">'
+    +(appLock.key
+        ?'<span class="pill up" style="align-self:center">'+ic('check')+' Lås aktivt</span><button class="btn ghost sm" onclick="changePasscode()">Byt kod</button><button class="btn danger sm" onclick="disableLock()">Stäng av lås</button>'
+        :'<button class="btn primary sm" onclick="enableLock()">'+ic('check')+'Aktivera applås</button>')
+    +'</div></div>';
+
+  // Molnsynkning & konto (Supabase)
+  html+='<div class="card" style="margin-top:16px"><b style="font-family:var(--display)">Molnsynkning & konto</b>'
+    +'<div class="dim" style="font-size:12px;margin:4px 0 12px">Inloggning och databas via <b>Supabase</b> (gratis). Frontend pratar direkt med Supabase — ingen egen server behövs. Aktivera applås ovan för att kryptera molndatan E2E.</div>';
+  // 1) konfig: URL + anon-nyckel
+  html+='<div class="form-grid"><div class="fld full"><label>Supabase Project URL</label><input id="sbUrl" value="'+esc(state.settings.supabaseUrl||'')+'" placeholder="https://xxxx.supabase.co"></div>'
+    +'<div class="fld full"><label>Supabase anon/public-nyckel</label><input id="sbKey" type="password" value="'+esc(state.settings.supabaseKey||'')+'" placeholder="eyJhbGci…"></div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">'
+    +'<button class="btn ghost sm" onclick="saveSupabaseConfig()">'+ic('check')+'Spara anslutning</button>'
+    +'<span class="dim" style="font-size:11px;align-self:center">'+(supabaseReady()?'<span class="gain">Konfigurerad</span>':'Ange uppgifter från Supabase → Project Settings → API')+'</span></div>';
+  // 2) inloggningsläge
+  if(supabaseReady()){
+    if(loggedIn()){
+      html+='<div style="border-top:1px solid var(--border-soft);padding-top:12px;margin-top:4px"><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">'
+        +'<span class="pill up">'+ic('check')+' Inloggad som <b>'+esc(session.email)+'</b></span>'
+        +(session.lastSync?'<span class="dim" style="font-size:11px">Senast synkad: '+esc(session.lastSync.slice(0,16).replace("T"," "))+'</span>':'<span class="dim" style="font-size:11px">Ej synkad ännu</span>')+'</div>'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+        +'<button class="btn primary sm" onclick="manualSync()">'+ic('refresh')+'Synka nu</button>'
+        +'<button class="btn ghost sm" onclick="manualPull()">'+ic('download')+'Hämta från moln</button>'
+        +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px"><input type="checkbox" id="autoSyncCb" '+(session.autoSync?'checked':'')+' style="width:16px;accent-color:var(--primary)"> Auto-synk vid ändring</label>'
+        +'<div style="flex:1"></div><button class="btn ghost sm" onclick="logout()">'+ic('external')+'Logga ut</button></div>'
+        +'<div style="margin-top:10px"><button class="btn danger sm" onclick="deleteAccount()">'+ic('trash')+'Radera konto & molndata</button></div></div>';
+    }else{
+      html+='<div style="border-top:1px solid var(--border-soft);padding-top:12px;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">'
+        +'<button class="btn primary sm" onclick="authModal()">'+ic('check')+'Logga in</button>'
+        +'<button class="btn ghost sm" onclick="authModal(\'register\')">'+ic('plus')+'Registrera konto</button></div>';
+    }
+  }
+  html+='</div>';
+
+  // Backup
+  html+='<div class="card" style="margin-top:16px"><b style="font-family:var(--display)">Säkerhetskopia & data</b>'
+    +'<div class="dim" style="font-size:12px;margin:4px 0 12px">All data lagras lokalt i din webbläsare. Exportera regelbundet som backup.</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" onclick="exportData()">'+ic('download')+'Exportera JSON</button>'
+    +'<button class="btn ghost sm" onclick="importPrompt()">'+ic('upload')+'Importera JSON</button>'
+    +'<button class="btn ghost sm" onclick="toggleTheme()">'+ic(s.theme==='dark'?'sun':'moon')+'Växla tema</button>'
+    +'<button class="btn danger sm" onclick="resetAll()">'+ic('trash')+'Återställ allt</button></div></div>';
+  $('#page-settings').innerHTML=html;
+};
+function saveRates(){$$('#page-settings [data-rate]').forEach(i=>{if(!i.disabled)state.settings.rates[i.dataset.rate]=parseFloat(i.value)||1;});state.settings.rates[state.settings.baseCurrency]=1;save();rerenderCurrent();toast('Växelkurser sparade','ok');}
+function saveImport(){state.settings.vatRate=parseFloat($('#setVat').value)||0;state.settings.customsFee=parseFloat($('#setCustoms').value)||0;save();rerenderCurrent();toast('Importinställningar sparade','ok');}
+function saveApi(){state.settings.apiKey=$('#setKey').value.trim();state.settings.aiModel=$('#setModel').value;state.settings.serverUrl=$('#setServer').value.trim();save();checkServer();toast('API-inställningar sparade','ok');}
+function onBaseChange(){const v=$('#setBase').value;state.settings.baseCurrency=v;state.settings.rates[v]=1;save();rerenderCurrent();toast('Basvaluta: '+v,'ok');}
+async function fetchRates(){
+  toast('Hämtar kurser…','ok');
+  const b=state.settings.baseCurrency;const syms=CURRENCIES.filter(c=>c!==b).join(',');
+  try{
+    const r=await fetch('https://api.exchangerate.host/latest?base='+b+'&symbols='+syms);
+    const d=await r.json();
+    if(!d||!d.rates)throw new Error('Inget svar');
+    CURRENCIES.forEach(c=>{if(c===b){state.settings.rates[c]=1;}else if(d.rates[c]){state.settings.rates[c]=Math.round(1/d.rates[c]*10000)/10000;}});
+    state.settings.ratesUpdated=todayISO();save();rerenderCurrent();toast('Dagskurser hämtade','ok');
+  }catch(e){toast('Kunde inte hämta kurser (CORS/nät) — uppdatera manuellt','warn');}
+}
+function resetAll(){
+  if(!confirm('Återställ ALLT till exempeldata? All din egen data raderas permanent.'))return;
+  if(!confirm('Är du helt säker? Detta går inte att ångra.'))return;
+  appLock={enabled:false,key:null,salt:null,iter:210000};
+  localStorage.removeItem(STORAGE_KEY);
+  state=seedData();save();applyTheme();renderNav();updateBadges();navigate('dashboard');updateTicker();toast('Återställt till exempeldata','ok');
+}
+
+/* ---------- Export / Import ---------- */
+function exportData(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='cardtrack-backup-'+todayISO()+'.json';a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup exporterad','ok');
+}
+function importPrompt(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='application/json,.json';
+  inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+    r.onload=()=>{try{const d=JSON.parse(r.result);importData(d);}catch(err){toast('Ogiltig fil: '+err.message,'err');}};
+    r.readAsText(f);};
+  inp.click();
+}
+function importData(d){
+  if(!d||!d.items||!d.sites){toast('Filen verkar inte vara en CardTrack-backup','err');return;}
+  if(!confirm('Ersätt nuvarande data med importerad backup?'))return;
+  state=Object.assign({categories:[],sites:[],items:[],watch:[],priceHistory:[],snapshots:[],savedViews:[],settings:defaultSettings()},d);
+  state.settings=Object.assign(defaultSettings(),d.settings||{});
+  save();applyTheme();renderNav();updateBadges();navigate('dashboard');updateTicker();toast('Backup importerad','ok');
+}
+
+/* ============================================================
+   SÄKERHET — applås (PBKDF2 + AES-256-GCM, allt lokalt)
+   ============================================================ */
+function bufToB64(buf){return btoa(String.fromCharCode.apply(null,new Uint8Array(buf)));}
+function b64ToBuf(b64){const bin=atob(b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u.buffer;}
+async function deriveKey(pass,saltBuf,iter){
+  const baseKey=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:saltBuf,iterations:iter,hash:'SHA-256'},baseKey,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function persistEncrypted(){
+  try{
+    const iv=crypto.getRandomValues(new Uint8Array(12));
+    const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},appLock.key,new TextEncoder().encode(JSON.stringify(state)));
+    localStorage.setItem(STORAGE_KEY,JSON.stringify({__enc:1,v:1,salt:appLock.salt,iter:appLock.iter,iv:bufToB64(iv),ct:bufToB64(ct)}));
+    scheduleCloudPush();
+  }catch(e){toast('Krypterad sparning misslyckades — '+e.message,'err');}
+}
+async function enableLock(){
+  const p1=prompt('Välj en kod för att låsa appen (minst 4 tecken):');if(p1==null)return;
+  if(p1.length<4){toast('Koden är för kort','err');return;}
+  const p2=prompt('Bekräfta koden:');if(p2!==p1){toast('Koderna matchade inte','err');return;}
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  appLock.salt=bufToB64(salt.buffer);appLock.iter=210000;
+  appLock.key=await deriveKey(p1,salt.buffer,appLock.iter);appLock.enabled=true;
+  await persistEncrypted();rerenderCurrent();toast('Applås aktiverat — data krypterad','ok');
+}
+async function disableLock(){
+  if(!appLock.key)return;
+  if(!confirm('Stäng av applåset? Data sparas då okrypterat på enheten.'))return;
+  appLock={enabled:false,key:null,salt:null,iter:210000};
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+  rerenderCurrent();toast('Applås avstängt','warn');
+}
+async function changePasscode(){
+  if(!appLock.key)return;
+  const p1=prompt('Ny kod (minst 4 tecken):');if(p1==null)return;if(p1.length<4){toast('För kort','err');return;}
+  const p2=prompt('Bekräfta ny kod:');if(p2!==p1){toast('Matchade inte','err');return;}
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  appLock.salt=bufToB64(salt.buffer);appLock.key=await deriveKey(p1,salt.buffer,appLock.iter);
+  await persistEncrypted();toast('Kod uppdaterad','ok');
+}
+function showLockScreen(meta){
+  return new Promise(resolve=>{
+    const scr=$('#lockScreen');scr.classList.add('open');
+    const inp=$('#lockInput'),btn=$('#lockBtn'),err=$('#lockErr');
+    setTimeout(()=>inp.focus(),60);
+    const tryUnlock=async()=>{
+      const pass=inp.value;if(!pass)return;
+      btn.disabled=true;err.textContent='';
+      try{
+        const key=await deriveKey(pass,b64ToBuf(meta.salt),meta.iter);
+        const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64ToBuf(meta.iv)},key,b64ToBuf(meta.ct));
+        const obj=JSON.parse(new TextDecoder().decode(pt));
+        appLock={enabled:true,key:key,salt:meta.salt,iter:meta.iter};
+        scr.classList.remove('open');inp.value='';
+        resolve(obj);
+      }catch(e){err.textContent='Fel kod — försök igen.';inp.value='';inp.focus();btn.disabled=false;}
+    };
+    btn.onclick=tryUnlock;
+    inp.onkeydown=e=>{if(e.key==='Enter')tryUnlock();};
+  });
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function init(){
+  // injicera ikoner i statiska topbar-knappar
+  const mt=$('.mtoggle');if(mt)mt.innerHTML=ic('menu');
+  const addBtn=document.querySelector('.topbar-actions .primary');if(addBtn)addBtn.innerHTML=ic('plus')+'<span class="nowrap">Lägg till</span>';
+  $('#scrim')&&($('#scrim').onclick=()=>toggleSidebar(false));
+
+  let loaded=load();
+  if(loaded && loaded.__enc){
+    // krypterad — kräver upplåsning
+    loaded=await showLockScreen(loaded);
+  }
+  state=loaded||seedData();
+  if(!loaded)save();
+  // säkerställ struktur för äldre/importerad data
+  state.priceHistory=state.priceHistory||[];state.snapshots=state.snapshots||[];state.watch=state.watch||[];state.savedViews=state.savedViews||[];
+  state.settings=Object.assign(defaultSettings(),state.settings||{});
+
+  applyTheme();
+  renderNav();
+  updateBadges();
+  navigate('dashboard');
+  updateTicker();
+  checkServer();
+  // koppla basvaluta-väljaren när settings renderas (delegerat)
+  document.addEventListener('change',e=>{if(e.target&&e.target.id==='setBase')onBaseChange();});
+  // återställ Supabase-session i bakgrunden, uppdatera vyn när klar
+  initSupabase().then(()=>{if(loggedIn())rerenderCurrent();});
+}
+window.addEventListener('DOMContentLoaded',init);
+
+/* ============================================================
+   MOLNSYNKNING & INLOGGNING (Supabase: auth + databas)
+   ============================================================ */
+let sbClient=null;
+let session=null;            // UI-cache: {email, autoSync, lastSync}
+const SESSION_KEY='cardtrack.session';
+let _cloudPushTimer=null;
+
+function loadSession(){try{const r=localStorage.getItem(SESSION_KEY);if(r)session=JSON.parse(r);}catch(e){session=null;}}
+function saveSession(){if(session)localStorage.setItem(SESSION_KEY,JSON.stringify(session));else localStorage.removeItem(SESSION_KEY);}
+
+function supabaseReady(){return !!(state.settings.supabaseUrl&&state.settings.supabaseKey);}
+function getSB(){
+  if(sbClient)return sbClient;
+  if(!supabaseReady())return null;
+  if(!window.supabase||!window.supabase.createClient){toast('Supabase-biblioteket kunde inte laddas (nät?)','err');return null;}
+  sbClient=window.supabase.createClient(state.settings.supabaseUrl.trim().replace(/\/$/,''),state.settings.supabaseKey.trim());
+  return sbClient;
+}
+async function initSupabase(){
+  const sb=getSB();if(!sb){session=null;saveSession();return;}
+  try{
+    const {data}=await sb.auth.getSession();
+    if(data&&data.session){session=Object.assign({autoSync:true,lastSync:null},session||{},{email:data.session.user.email});}
+    else{session=null;}
+    saveSession();
+    sb.auth.onAuthStateChange((ev,s)=>{
+      if(ev==='PASSWORD_RECOVERY'){setTimeout(newPasswordModal,300);}
+      if(s&&s.user){session=Object.assign({autoSync:true,lastSync:null},session||{},{email:s.user.email});}
+      else{session=null;}
+      saveSession();
+    });
+  }catch(e){console.warn('Supabase init:',e.message);}
+}
+function loggedIn(){return !!(session&&session.email&&sbClient);}
+async function sbUserId(){const sb=getSB();if(!sb)return null;const {data}=await sb.auth.getUser();return data&&data.user?data.user.id:null;}
+
+function scheduleCloudPush(){
+  if(!loggedIn()||!session.autoSync)return;
+  if(_cloudPushTimer)clearTimeout(_cloudPushTimer);
+  _cloudPushTimer=setTimeout(()=>{cloudPush().catch(e=>console.warn('Synk misslyckades:',e.message));},1800);
+}
+async function cloudPush(){
+  const sb=getSB();if(!sb)throw new Error('Supabase ej konfigurerat');
+  const uid2=await sbUserId();if(!uid2)throw new Error('Inte inloggad');
+  const blob=localStorage.getItem(STORAGE_KEY);if(!blob)throw new Error('Inget data');
+  const {error}=await sb.from('collections').upsert({user_id:uid2,data:blob,updated_at:new Date().toISOString()});
+  if(error)throw new Error(error.message);
+  session.lastSync=new Date().toISOString();saveSession();
+}
+async function cloudPull(){
+  const sb=getSB();if(!sb)throw new Error('Supabase ej konfigurerat');
+  const uid2=await sbUserId();if(!uid2)throw new Error('Inte inloggad');
+  const {data,error}=await sb.from('collections').select('data').eq('user_id',uid2).maybeSingle();
+  if(error)throw new Error(error.message);
+  return data&&data.data?data.data:null;
+}
+
+/* ============================================================
+   SUPABASE STORAGE — egna foton av fysiska kort
+   Bucket: 'card-photos' (publik läsning, RLS skriv per användare).
+   Sökväg: <userId>/<itemId>/<uid>.<ext>
+   ============================================================ */
+const PHOTO_BUCKET='card-photos';
+const MAX_PHOTO_BYTES=8*1024*1024;
+function photosReady(){return loggedIn();}
+async function uploadPhoto(itemId,file){
+  const sb=getSB();if(!sb)throw new Error('Supabase ej konfigurerat');
+  const uid2=await sbUserId();if(!uid2)throw new Error('Logga in för att ladda upp foton');
+  if(file.size>MAX_PHOTO_BYTES)throw new Error('Bilden är för stor (max 8 MB)');
+  if(!/^image\//.test(file.type))throw new Error('Endast bildfiler stöds');
+  const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
+  const path=uid2+'/'+itemId+'/'+uid()+'.'+ext;
+  const {error}=await sb.storage.from(PHOTO_BUCKET).upload(path,file,{cacheControl:'3600',contentType:file.type,upsert:false});
+  if(error)throw new Error(error.message);
+  const {data}=sb.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+  return {url:data.publicUrl,path:path};
+}
+async function deletePhotoFile(path){
+  const sb=getSB();if(!sb||!path)return;
+  try{await sb.storage.from(PHOTO_BUCKET).remove([path]);}catch(e){console.warn('Kunde inte radera fil:',e.message);}
+}
+// utvinn lagrings-sökväg ur en publik URL (för radering)
+function pathFromPublicUrl(url){
+  if(!url)return null;
+  const m=url.split('/'+PHOTO_BUCKET+'/');
+  return m.length>1?decodeURIComponent(m[1].split('?')[0]):null;
+}
+
+/* ============================================================
+   BILDVISARE (zoom)
+   ============================================================ */
+function viewImage(src){
+  if(!src)return;
+  $('#imgviewerImg').src=src;
+  $('#imgviewer').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeViewer(){
+  $('#imgviewer').classList.remove('open');
+  if(!$('#overlay').classList.contains('open'))document.body.style.overflow='';
+  setTimeout(()=>{const i=$('#imgviewerImg');if(i&&!$('#imgviewer').classList.contains('open'))i.src='';},220);
+}
+
+async function manualSync(){try{await cloudPush();toast('Synkad till molnet','ok');rerenderCurrent();}catch(e){toast('Synk misslyckades: '+e.message,'err');}}async function manualPull(){
+  if(!confirm('Hämta data från molnet? Detta ERSÄTTER din nuvarande lokala data.'))return;
+  try{const blob=await cloudPull();if(!blob){toast('Inget data i molnet','warn');return;}
+    localStorage.setItem(STORAGE_KEY,blob);toast('Hämtat — laddar om…','ok');setTimeout(()=>location.reload(),700);
+  }catch(e){toast('Misslyckades: '+e.message,'err');}
+}
+function saveSupabaseConfig(){
+  state.settings.supabaseUrl=$('#sbUrl').value.trim();
+  state.settings.supabaseKey=$('#sbKey').value.trim();
+  sbClient=null;save();
+  initSupabase().then(()=>rerenderCurrent());
+  toast('Supabase-inställningar sparade','ok');
+}
+async function logout(){
+  const sb=getSB();if(sb)try{await sb.auth.signOut();}catch(e){}
+  session=null;saveSession();rerenderCurrent();toast('Utloggad','warn');
+}
+function authModal(mode){
+  if(!supabaseReady()){toast('Ange Supabase-URL och nyckel under Inställningar först','warn');navigate('settings');return;}
+  const isReg=mode==='register';
+  const html='<div class="modal-head"><h3>'+(isReg?'Registrera konto':'Logga in')+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+    +'<div class="modal-body"><div class="note-banner">'+ic('alert')+'<div>Inloggning via <b>Supabase Auth</b> — lösenord hanteras säkert av Supabase. Aktivera applås under Säkerhet för E2E-kryptering av molndatan.</div></div>'
+    +'<form id="authForm" onsubmit="event.preventDefault();doAuth('+(isReg?'true':'false')+')"><div class="form-grid">'
+    +'<div class="fld full"><label>E-post <span class="req">*</span></label><input name="email" type="email" required autocomplete="email" autofocus></div>'
+    +'<div class="fld full"><label>Lösenord <span class="req">*</span></label><input name="password" type="password" required minlength="6" autocomplete="'+(isReg?'new-password':'current-password')+'"></div>'
+    +'</div>'+(isReg?'':'<div style="margin-top:8px"><button type="button" class="btn ghost sm" style="padding:4px 0;background:none;border:none;color:var(--primary)" onclick="forgotPassword()">Glömt lösenord?</button></div>')+'<button type="submit" style="display:none"></button></form><div id="authErr" style="color:var(--loss);margin-top:10px;font-size:12.5px;min-height:18px"></div></div>'
+    +'<div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Avbryt</button><div style="flex:1"></div>'
+    +(isReg?'<button class="btn ghost" onclick="authModal()">Har redan konto →</button>':'<button class="btn ghost" onclick="authModal(\'register\')">Skapa nytt →</button>')
+    +'<button class="btn primary" onclick="doAuth('+(isReg?'true':'false')+')">'+ic('check')+(isReg?'Registrera':'Logga in')+'</button></div>';
+  openModal(html);
+}
+async function doAuth(isReg){
+  const f=$('#authForm');const err=$('#authErr');err.textContent='';
+  const email=(f.email.value||'').trim().toLowerCase();const password=f.password.value;
+  if(!email||!password){err.textContent='Fyll i e-post och lösenord';return;}
+  const sb=getSB();if(!sb){err.textContent='Supabase ej konfigurerat';return;}
+  try{
+    if(isReg){
+      const {data,error}=await sb.auth.signUp({email:email,password:password});
+      if(error)throw new Error(error.message);
+      if(!data.session){closeModal();toast('Konto skapat — bekräfta via mejlet och logga sedan in','ok');return;}
+      session={email:email,autoSync:true,lastSync:null};saveSession();
+      try{await cloudPush();}catch(e){}
+    }else{
+      const {error}=await sb.auth.signInWithPassword({email:email,password:password});
+      if(error)throw new Error(error.message);
+      session={email:email,autoSync:true,lastSync:null};saveSession();
+      try{
+        const remote=await cloudPull();const local=localStorage.getItem(STORAGE_KEY);
+        if(remote&&remote!==local){
+          if(confirm('Det finns data i ditt molnkonto. HÄMTA molnversionen (ersätter lokal data)?\n\nAvbryt = pusha din lokala data till molnet i stället.')){
+            localStorage.setItem(STORAGE_KEY,remote);closeModal();toast('Hämtat — laddar om…','ok');setTimeout(()=>location.reload(),700);return;
+          }else{await cloudPush();}
+        }else if(!remote){await cloudPush();}
+      }catch(e){try{await cloudPush();}catch(e2){}}
+    }
+    closeModal();toast(isReg?'Inloggad':'Inloggad','ok');rerenderCurrent();
+  }catch(e){err.textContent=e.message;}
+}
+document.addEventListener('change',e=>{
+  if(e.target&&e.target.id==='autoSyncCb'&&session){session.autoSync=e.target.checked;saveSession();toast('Auto-synk '+(e.target.checked?'på':'av'),'ok');}
+});
+
+async function forgotPassword(){
+  const sb=getSB();if(!sb){toast('Supabase ej konfigurerat','warn');return;}
+  const f=$('#authForm');
+  let email=(f&&f.email?f.email.value:'')||'';
+  if(!email.trim())email=prompt('Ange din e-post så skickar vi en återställningslänk:')||'';
+  email=email.trim().toLowerCase();if(!email)return;
+  try{
+    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.href.split('#')[0]});
+    if(error)throw new Error(error.message);
+    closeModal();toast('Återställningsmejl skickat till '+email,'ok');
+  }catch(e){toast('Kunde inte skicka: '+e.message,'err');}
+}
+function newPasswordModal(){
+  const html='<div class="modal-head"><h3>Välj nytt lösenord</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+    +'<div class="modal-body"><div class="note-banner">'+ic('check')+'<div>Du följde återställningslänken. Ange ett nytt lösenord nedan.</div></div>'
+    +'<form id="npForm" onsubmit="event.preventDefault();setNewPassword()"><div class="form-grid">'
+    +'<div class="fld full"><label>Nytt lösenord <span class="req">*</span></label><input name="password" type="password" required minlength="6" autocomplete="new-password" autofocus></div>'
+    +'</div><button type="submit" style="display:none"></button></form><div id="npErr" style="color:var(--loss);font-size:12.5px;min-height:18px;margin-top:8px"></div></div>'
+    +'<div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Avbryt</button><div style="flex:1"></div><button class="btn primary" onclick="setNewPassword()">'+ic('check')+'Spara lösenord</button></div>';
+  openModal(html);
+}
+async function setNewPassword(){
+  const f=$('#npForm');const err=$('#npErr');err.textContent='';
+  const pw=f.password.value;if(!pw||pw.length<6){err.textContent='Minst 6 tecken';return;}
+  const sb=getSB();if(!sb){err.textContent='Supabase ej konfigurerat';return;}
+  try{const {error}=await sb.auth.updateUser({password:pw});if(error)throw new Error(error.message);
+    closeModal();toast('Lösenord uppdaterat','ok');rerenderCurrent();
+  }catch(e){err.textContent=e.message;}
+}
+async function deleteAccount(){
+  if(!loggedIn())return;
+  if(!confirm('Radera ditt konto och all molndata permanent? Detta går inte att ångra.'))return;
+  if(!confirm('Helt säker? All data i molnet tas bort och du loggas ut. (Din lokala data på enheten finns kvar.)'))return;
+  const sb=getSB();if(!sb)return;
+  try{
+    const uid2=await sbUserId();
+    if(uid2){try{await sb.from('collections').delete().eq('user_id',uid2);}catch(e){}}
+    let full=false;
+    try{const {error}=await sb.rpc('delete_user');if(!error)full=true;}catch(e){}
+    try{await sb.auth.signOut();}catch(e){}
+    session=null;saveSession();rerenderCurrent();
+    toast(full?'Konto raderat':'Molndata raderad & utloggad','warn');
+  }catch(e){toast('Fel: '+e.message,'err');}
+}
+
+// Ladda session-cache så snart skriptet är inläst
+loadSession();
+
+/* ============================================================
+   KORTKATALOG — autocomplete mot gratis öppna API:er
+   Pokémon: TCGdex (flerspråkig)   Magic: Scryfall
+   Yu-Gi-Oh!: YGOPRODeck           Lorcana: Lorcast
+   Övriga kategorier: manuell inmatning
+   ============================================================ */
+const LANGUAGES=[
+  {code:'en',label:'Engelska'},{code:'ja',label:'Japanska'},{code:'fr',label:'Franska'},
+  {code:'de',label:'Tyska'},{code:'es',label:'Spanska'},{code:'it',label:'Italienska'},
+  {code:'pt',label:'Portugisiska'},{code:'zh-cn',label:'Kinesiska'},{code:'ko',label:'Koreanska'}
+];
+function langOptions(sel){return LANGUAGES.map(l=>'<option value="'+l.code+'" '+(l.code===sel?'selected':'')+'>'+l.label+'</option>').join('');}
+function langLabel(c){const x=LANGUAGES.find(l=>l.code===c);return x?x.label:(c||'');}
+
+/* Hämtar JSON direkt; faller tillbaka på serverns /proxy vid CORS/nät-fel */
+async function catalogFetch(url){
+  try{const r=await fetch(url,{headers:{'accept':'application/json'}});if(r.ok)return r.json();if(r.status===404||r.status===400)return null;}catch(e){}
+  const base=(state.settings.serverUrl||'').replace(/\/$/,'');
+  if(base){try{const r=await fetch(base+'/proxy?url='+encodeURIComponent(url));if(r.ok)return r.json();}catch(e){}}
+  throw new Error('cors');
+}
+
+/* ---- Providers (returnerar normaliserade träffar) ---- */
+async function tcgdexCards(q,lang){
+  const d=await catalogFetch('https://api.tcgdex.net/v2/'+(lang||'en')+'/cards?name='+encodeURIComponent(q));
+  return (d||[]).slice(0,20).map(c=>({name:c.name,set:'',image:c.image?c.image+'/low.webp':'',full:c.image?c.image+'/high.webp':'',id:c.id,kind:'card',prov:'pok'}));
+}
+async function tcgdexSets(q,lang){
+  const d=await catalogFetch('https://api.tcgdex.net/v2/'+(lang||'en')+'/sets?name='+encodeURIComponent(q));
+  return (d||[]).slice(0,12).map(s=>({name:s.name,set:s.name,image:s.logo?s.logo+'.webp':(s.symbol?s.symbol+'.png':''),full:s.logo?s.logo+'.png':'',id:s.id,kind:'set',prov:'pok',sub:(s.cardCount&&s.cardCount.total?s.cardCount.total+' kort':'')}));
+}
+async function tcgdexEnrich(item,lang){
+  if(item.prov!=='pok'||item.kind!=='card')return item;
+  try{const c=await catalogFetch('https://api.tcgdex.net/v2/'+(lang||'en')+'/cards/'+item.id);if(c&&c.set)item.set=c.set.name;}catch(e){}
+  return item;
+}
+async function scryfallCards(q,lang){
+  let query=q;if(lang&&lang!=='en')query+=' lang:'+lang;
+  const d=await catalogFetch('https://api.scryfall.com/cards/search?order=name&q='+encodeURIComponent(query));
+  return (d&&d.data?d.data:[]).slice(0,20).map(c=>{const img=c.image_uris||(c.card_faces&&c.card_faces[0]&&c.card_faces[0].image_uris)||{};
+    return {name:c.name,set:c.set_name||'',image:img.small||img.normal||'',full:img.normal||img.large||img.png||'',id:c.id,kind:'card',prov:'mtg'};});
+}
+let _scrySets=null;
+async function scryfallSets(q){
+  if(!_scrySets){const d=await catalogFetch('https://api.scryfall.com/sets');_scrySets=(d&&d.data)||[];}
+  const ql=q.toLowerCase();
+  return _scrySets.filter(s=>(s.name||'').toLowerCase().includes(ql)).slice(0,12).map(s=>({name:s.name,set:s.name,image:s.icon_svg_uri||'',full:s.icon_svg_uri||'',id:s.id,kind:'set',prov:'mtg',sub:(s.card_count?s.card_count+' kort':'')}));
+}
+async function ygoCards(q){
+  const d=await catalogFetch('https://db.ygoprodeck.com/api/v1/cardinfo.php?fname='+encodeURIComponent(q)+'&num=20&offset=0');
+  return (d&&d.data?d.data:[]).slice(0,20).map(c=>{const img=(c.card_images&&c.card_images[0])||{};
+    return {name:c.name,set:(c.card_sets&&c.card_sets[0]&&c.card_sets[0].set_name)||'',image:img.image_url_small||'',full:img.image_url||'',id:c.id,kind:'card',prov:'ygo'};});
+}
+async function lorcastCards(q){
+  const d=await catalogFetch('https://api.lorcast.com/v0/cards/search?q='+encodeURIComponent(q));
+  const arr=Array.isArray(d)?d:(d&&d.results?d.results:[]);
+  return arr.slice(0,20).map(c=>{const img=(c.image_uris&&c.image_uris.digital)||{};
+    return {name:c.name+(c.version?' — '+c.version:''),set:(c.set&&c.set.name)||'',image:img.small||img.normal||'',full:img.normal||img.large||'',id:c.id,kind:'card',prov:'lor'};});
+}
+let _lorSets=null;
+async function lorcastSets(q){
+  if(!_lorSets){const d=await catalogFetch('https://api.lorcast.com/v0/sets');_lorSets=Array.isArray(d)?d:(d&&d.results?d.results:[]);}
+  const ql=q.toLowerCase();
+  return _lorSets.filter(s=>(s.name||'').toLowerCase().includes(ql)).slice(0,12).map(s=>({name:s.name,set:s.name,image:'',full:'',id:s.id,kind:'set',prov:'lor'}));
+}
+const CATALOG={
+  pok:{name:'Pokémon · TCGdex',multiLang:true,card:tcgdexCards,set:tcgdexSets},
+  mtg:{name:'Magic · Scryfall',multiLang:true,card:scryfallCards,set:scryfallSets},
+  ygo:{name:'Yu-Gi-Oh! · YGOPRODeck',multiLang:false,card:ygoCards},
+  lor:{name:'Lorcana · Lorcast',multiLang:false,card:lorcastCards,set:lorcastSets}
+};
+
+let catalogTimer=null, catalogResults=[], catalogReq=0;
+function initCatalog(){
+  const inp=$('#taInput'),cat=$('#taCat');
+  if(!inp||!cat)return;
+  updateCatalogHint();
+  cat.addEventListener('change',()=>{updateCatalogHint();closeCatalogResults();});
+  inp.addEventListener('input',()=>{
+    clearTimeout(catalogTimer);
+    const q=inp.value.trim();
+    if(q.length<2){closeCatalogResults();return;}
+    catalogTimer=setTimeout(()=>runCatalogSearch(q),320);
+  });
+  inp.addEventListener('blur',()=>setTimeout(closeCatalogResults,180));
+  document.addEventListener('click',catalogOutsideClose);
+}
+function catalogOutsideClose(e){const w=$('#taResults');if(w&&!e.target.closest('.ta-wrap'))closeCatalogResults();}
+function currentProvider(){const c=$('#taCat');return c?CATALOG[c.value]:null;}
+function updateCatalogHint(){
+  const h=$('#taHint'),lang=$('#taLang');if(!h)return;
+  const p=currentProvider();
+  if(p){h.innerHTML=ic('spark')+'Sökning aktiv: <b style="color:var(--text-dim)">'+esc(p.name)+'</b>'+(p.multiLang?' · flerspråkig':'');
+    if(lang)lang.parentElement.style.opacity=p.multiLang?'1':'.5';
+  }else{h.innerHTML=ic('alert')+'Ingen katalog för denna kategori än — fyll i namn manuellt.';}
+}
+async function runCatalogSearch(q){
+  const p=currentProvider();const box=$('#taResults');if(!p||!box)return;
+  const lang=$('#taLang')?$('#taLang').value:'en';
+  const reqId=++catalogReq;
+  box.classList.add('open');box.innerHTML='<div class="ta-msg">'+ic('refresh')+' Söker…</div>';
+  try{
+    const tasks=[];
+    if(p.set)tasks.push(p.set(q,p.multiLang?lang:'en').catch(()=>[]));
+    if(p.card)tasks.push(p.card(q,p.multiLang?lang:'en').catch(()=>[]));
+    const parts=await Promise.all(tasks);
+    if(reqId!==catalogReq)return; // en nyare sökning hann före
+    let out=[];parts.forEach(pa=>out=out.concat(pa));
+    catalogResults=out.slice(0,28);
+    renderCatalogResults();
+  }catch(e){
+    if(reqId!==catalogReq)return;
+    box.innerHTML='<div class="ta-msg">Kunde inte söka — CORS/nät. Öppna appen via en webbserver eller starta CardTrack-servern (då används dess /proxy automatiskt).</div>';
+  }
+}
+function renderCatalogResults(){
+  const box=$('#taResults');if(!box)return;
+  if(!catalogResults.length){box.innerHTML='<div class="ta-msg">Inga träffar.</div>';return;}
+  box.innerHTML=catalogResults.map((r,i)=>{
+    const img=r.image?'<img src="'+esc(r.image)+'" alt="" loading="lazy" onerror="this.outerHTML=\'<div class=\\\'ta-ph\\\'>'+ic('box')+'</div>\'">':'<div class="ta-ph">'+ic(r.kind==='set'?'layers':'box')+'</div>';
+    const sub=r.kind==='set'?(r.sub||'Set / förseglat'):(r.set||'');
+    return '<div class="ta-item" onmousedown="event.preventDefault()" onclick="pickCatalog('+i+')">'+img
+      +'<div style="flex:1;min-width:0"><div class="ta-name">'+esc(r.name)+'</div>'+(sub?'<div class="ta-sub">'+esc(sub)+'</div>':'')+'</div>'
+      +'<span class="ta-badge'+(r.kind==='set'?' set':'')+'">'+(r.kind==='set'?'SET':'KORT')+'</span></div>';
+  }).join('');
+  box.classList.add('open');
+}
+function closeCatalogResults(){const b=$('#taResults');if(b){b.classList.remove('open');}}
+async function pickCatalog(i){
+  const r=catalogResults[i];if(!r)return;
+  const f=$('#itemFormEl');if(!f)return;
+  const lang=$('#taLang')?$('#taLang').value:'en';
+  let setName=r.set;
+  if(r.prov==='pok'&&r.kind==='card'){const e=await tcgdexEnrich(r,lang);setName=e.set||'';}
+  f.name.value=r.name;
+  if(setName)f.set.value=setName;
+  if(r.full||r.image)f.image.value=r.full||r.image;
+  if(r.kind==='set'&&f.type&&f.type.value==='Enskilt kort')f.type.value='Booster Box / Display';
+  closeCatalogResults();
+  toast('Hämtat från '+(CATALOG[r.cat]||currentProvider()||{name:'katalog'}).name.split(' · ')[0],'ok');
+}
+</script>
+</body>
+</html>
