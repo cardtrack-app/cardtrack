@@ -2026,7 +2026,7 @@ RENDERERS.settings=function(){
     +'<div class="form-grid" style="margin-top:10px">';
   CURRENCIES.forEach(c=>{html+='<div class="fld"><label>1 '+c+' = ? '+s.baseCurrency+'</label><input type="number" step="0.0001" data-rate="'+c+'" value="'+(s.rates[c]||1)+'" '+(c===s.baseCurrency?'disabled':'')+'></div>';});
   html+='</div><div style="display:flex;gap:8px;align-items:center;margin-top:12px"><button class="btn ghost sm" onclick="saveRates()">'+ic('check')+'Spara kurser</button><button class="btn ghost sm" onclick="fetchRates()">'+ic('refresh')+'Hämta dagskurser</button>'
-    +'<span class="dim" style="font-size:11px">'+(s.ratesUpdated?'Uppdaterad '+s.ratesUpdated:'Aldrig uppdaterad via API')+'</span></div></div>';
+    +'<span class="dim" style="font-size:11px">'+(s.ratesUpdated?'Uppdaterad automatiskt '+s.ratesUpdated:'Hämtar vid första start…')+'</span></div></div>';
 
   // Import/tull
   html+='<div class="card" style="margin-top:16px"><b style="font-family:var(--display)">Import: moms & tull</b>'
@@ -2098,16 +2098,28 @@ function saveRates(){$$('#page-settings [data-rate]').forEach(i=>{if(!i.disabled
 function saveImport(){state.settings.vatRate=parseFloat($('#setVat').value)||0;state.settings.customsFee=parseFloat($('#setCustoms').value)||0;save();rerenderCurrent();toast('Importinställningar sparade','ok');}
 function saveApi(){state.settings.apiKey=$('#setKey').value.trim();state.settings.aiModel=$('#setModel').value;state.settings.serverUrl=$('#setServer').value.trim();save();checkServer();toast('API-inställningar sparade','ok');}
 function onBaseChange(){const v=$('#setBase').value;state.settings.baseCurrency=v;state.settings.rates[v]=1;save();rerenderCurrent();toast('Basvaluta: '+v,'ok');}
-async function fetchRates(){
-  toast('Hämtar kurser…','ok');
-  const b=state.settings.baseCurrency;const syms=CURRENCIES.filter(c=>c!==b).join(',');
+async function fetchRates(silent){
+  if(!silent)toast('Hämtar kurser…','ok');
+  const b=state.settings.baseCurrency;
+  const syms=CURRENCIES.filter(c=>c!==b).join(',');
   try{
-    const r=await fetch('https://api.exchangerate.host/latest?base='+b+'&symbols='+syms);
+    const r=await fetch('https://api.frankfurter.app/latest?from='+b+'&to='+syms);
     const d=await r.json();
     if(!d||!d.rates)throw new Error('Inget svar');
-    CURRENCIES.forEach(c=>{if(c===b){state.settings.rates[c]=1;}else if(d.rates[c]){state.settings.rates[c]=Math.round(1/d.rates[c]*10000)/10000;}});
-    state.settings.ratesUpdated=todayISO();save();rerenderCurrent();toast('Dagskurser hämtade','ok');
-  }catch(e){toast('Kunde inte hämta kurser (CORS/nät) — uppdatera manuellt','warn');}
+    CURRENCIES.forEach(c=>{
+      if(c===b){state.settings.rates[c]=1;}
+      else if(d.rates[c]){state.settings.rates[c]=Math.round(1/d.rates[c]*10000)/10000;}
+    });
+    state.settings.ratesUpdated=todayISO();save();
+    if(!silent){rerenderCurrent();toast('Dagskurser hämtade (ECB via frankfurter.app)','ok');}
+  }catch(e){
+    if(!silent)toast('Kunde inte hämta kurser — kontrollera nätverket','warn');
+  }
+}
+async function autoUpdateRates(){
+  /* Hämtar automatiskt om kurser inte redan är hämtade idag */
+  if(state.settings.ratesUpdated===todayISO())return;
+  await fetchRates(true);
 }
 function resetAll(){
   if(!confirm('Återställ ALLT till exempeldata? All din egen data raderas permanent.'))return;
@@ -2238,6 +2250,7 @@ async function init(){
   document.addEventListener('change',e=>{if(e.target&&e.target.id==='setBase')onBaseChange();});
   // återställ Supabase-session i bakgrunden, uppdatera vyn när klar
   initSupabase().then(()=>{if(loggedIn()){rerenderCurrent();checkAdmin();}});
+  autoUpdateRates(); // hämtar dagskurser tyst om de inte redan är uppdaterade idag
 }
 window.addEventListener('DOMContentLoaded',init);
 
