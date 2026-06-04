@@ -1321,19 +1321,35 @@ async function removePhoto(id,idx){
 function priceEditor(kind,id){
   const obj=findObj(kind,id);if(!obj)return;
   obj.prices=obj.prices||[];
+  const cat=(obj.cat||'').toLowerCase();
+  const canAuto=(cat==='mtg'||cat==='pok');
   let rows=state.sites.map(s=>{
     const p=obj.prices.find(x=>x.siteId===s.id)||{};
+    const hasLink=!!(p.url);
     return '<div class="card" style="padding:13px;margin-bottom:10px" data-site="'+s.id+'">'
-      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span class="swatch" style="width:11px;height:11px;border-radius:50%;background:'+s.color+'"></span><b>'+esc(s.name)+'</b><span class="dim" style="font-size:11px">('+s.currency+(s.region==='NON_EU'?' · utanför EU':'')+')</span></div>'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
+      +'<span class="swatch" style="width:11px;height:11px;border-radius:50%;background:'+s.color+'"></span>'
+      +'<b>'+esc(s.name)+'</b><span class="dim" style="font-size:11px">('+s.currency+(s.region==='NON_EU'?' · utanför EU':'')+')</span>'
+      +(hasLink?'<a href="'+esc(p.url)+'" target="_blank" rel="noopener" class="btn ghost sm" style="margin-left:auto;padding:2px 7px;font-size:11px">'+ic('external')+' Öppna</a>':'')
+      +'</div>'
       +'<div class="form-grid" style="gap:9px">'
-      +'<div class="fld"><label>Pris ('+s.currency+')</label><input type="number" step="0.01" class="pe-price" placeholder="lämna tomt = inget pris" value="'+(p.price!=null?p.price:'')+'"></div>'
-      +'<div class="fld"><label>Frakt ('+s.currency+')</label><input type="number" step="0.01" class="pe-ship" placeholder="standard '+(s.defaultShipping||0)+'" value="'+(p.shipping!=null?p.shipping:'')+'"></div>'
-      +'<div class="fld full"><label>Direktlänk till produktsida</label><input type="url" class="pe-url" placeholder="https://…" value="'+esc(p.url||'')+'"></div>'
-      +'</div></div>';
+      +'<div class="fld"><label>Pris ('+s.currency+')</label><input type="number" step="0.01" class="pe-price" placeholder="tom = ingen data" value="'+(p.price!=null?p.price:'')+'"'+(p.auto?' data-auto="1"':'')+'></div>'
+      +'<div class="fld"><label>Frakt ('+s.currency+')</label><input type="number" step="0.01" class="pe-ship" placeholder="std '+(s.defaultShipping||0)+'" value="'+(p.shipping!=null?p.shipping:'')+'"></div>'
+      +'<div class="fld full"><label>'+ic('external')+' Länk till <b>denna</b> produkt på sajten</label>'
+      +'<input type="url" class="pe-url" placeholder="Klistra in produktsidans URL — t.ex. https://cardmarket.com/…/Charizard" value="'+esc(p.url||'')+'"></div>'
+      +'</div>'
+      +(p.auto?'<div class="auto-badge dim" style="font-size:10px;margin-top:4px">'+ic('check')+' Automatiskt hämtat</div>':'')
+      +'</div>';
   }).join('');
-  let html='<div class="modal-head"><h3>Uppdatera priser</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
-    +'<div class="modal-body"><div class="note-banner">'+ic('alert')+'<div>Lämna prisfältet tomt om sajten <b>inte</b> har produkten — CardTrack hittar aldrig på priser. Frakt tom = sajtens standardfrakt.</div></div>'
-    +'<div style="font-weight:600;margin-bottom:10px">'+esc(obj.name)+'</div>'+rows+'</div>'
+  let html='<div class="modal-head"><h3>Priser — '+esc(obj.name)+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+    +'<div class="modal-body">'
+    +(canAuto
+      ?'<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'
+        +'<button id="autoFetchBtn" class="btn sm" onclick="triggerAutoFetch(\''+kind+'\',\''+id+'\')">'+ic('refresh')+' Hämta priser automatiskt</button>'
+        +'<span class="dim" style="font-size:11px">Försöker matcha mot dina sajter via '+(cat==='mtg'?'Scryfall':'pokemontcg.io')+'</span>'
+        +'</div>'
+      :'<div class="note-banner" style="margin-bottom:12px">'+ic('alert')+'<div>Ingen automatisk hämtning för den här kategorin. Klistra in URL:en till produkten på varje sajt — du ser en "Öppna"-knapp direkt på raden nästa gång.</div></div>')
+    +rows+'</div>'
     +'<div class="modal-foot"><button class="btn ghost" onclick="'+(kind==='watch'?'editWatch':'itemDetail')+'(\''+id+'\')">Avbryt</button><button class="btn primary" onclick="savePrices(\''+kind+'\',\''+id+'\')">'+ic('check')+'Spara priser</button></div>';
   openModal(html,true);
 }
@@ -1350,11 +1366,12 @@ function savePrices(kind,id){
     const entry={siteId:sid,currency:site.currency,
       price:price===''?null:parseFloat(price),
       shipping:ship===''?null:parseFloat(ship),
-      url:url,updated:todayISO()};
+      url:url,updated:todayISO(),
+      auto:!!(c.querySelector('.pe-price').dataset.auto==='1'&&price!=='')};
     if(price!==''||url||(old&&old.price!=null)){newPrices.push(entry);}
     // log history if price set & changed
     if(price!==''&&(!old||old.price!=parseFloat(price))){
-      state.priceHistory.push({id:uid(),itemRef:id,name:obj.name,siteId:sid,price:parseFloat(price),currency:site.currency,date:todayISO(),auto:false});
+      state.priceHistory.push({id:uid(),itemRef:id,name:obj.name,siteId:sid,price:parseFloat(price),currency:site.currency,date:todayISO(),auto:!!(c.querySelector('.pe-price').dataset.auto==='1')});
       changed++;
     }
   });
@@ -2614,6 +2631,80 @@ async function mfaDisable(fid){
   const sb=getSB();
   try{const {error}=await sb.auth.mfa.unenroll({factorId:fid});if(error)throw new Error(error.message);toast('Tvåfaktor avstängt','warn');mfaRenderBox();}
   catch(e){toast('Fel: '+e.message,'err');}
+}
+
+/* ============================================================
+   AUTOMATISK PRISFETCHNING — Steg 2
+   MTG  → Scryfall (prices.eur/usd, CORS-öppet, gratis)
+   POK  → pokemontcg.io (cardmarket + tcgplayer, gratis/api-key)
+   Övrigt → manuell URL-länk per sajt (hybridmodell)
+   ============================================================ */
+async function autoFetchPrices(obj){
+  const cat=(obj.cat||'').toLowerCase();
+  const name=(obj.name||'').trim();
+  if(!name)return null;
+
+  if(cat==='mtg'){
+    try{
+      const set=obj.set?'&set='+encodeURIComponent(obj.set.slice(0,3).toLowerCase()):'';
+      const r=await catalogFetch('https://api.scryfall.com/cards/named?fuzzy='+encodeURIComponent(name)+set);
+      if(!r||r.object==='error')return null;
+      const p=r.prices||{},pu=r.purchase_uris||{},res=[];
+      if(p.eur!=null)res.push({currency:'EUR',price:parseFloat(p.eur),url:pu.cardmarket||'',label:'Cardmarket via Scryfall'});
+      if(p.usd!=null)res.push({currency:'USD',price:parseFloat(p.usd),url:pu.tcgplayer||'',label:'TCGPlayer via Scryfall'});
+      return res.length?{source:'scryfall',cardName:r.name,setName:r.set_name,prices:res}:null;
+    }catch(e){return null;}
+  }
+
+  if(cat==='pok'){
+    try{
+      const d=await catalogFetch('https://api.pokemontcg.io/v2/cards?q=name:%22'+encodeURIComponent(name)+'%22&pageSize=5');
+      if(!d||!d.data||!d.data.length)return null;
+      const setQ=(obj.set||'').toLowerCase();
+      const card=setQ?(d.data.find(c=>((c.set&&c.set.name)||'').toLowerCase().includes(setQ))||d.data[0]):d.data[0];
+      const res=[],cm=card.cardmarket&&card.cardmarket.prices,tm=card.tcgplayer&&card.tcgplayer.prices;
+      if(cm&&cm.averageSellPrice!=null)res.push({currency:'EUR',price:parseFloat(cm.averageSellPrice.toFixed(2)),url:(card.cardmarket&&card.cardmarket.url)||'',label:'Cardmarket via pokemontcg.io'});
+      if(tm){const v=tm.normal||tm.holofoil||tm.reverseHolofoil||Object.values(tm)[0];if(v&&v.market!=null)res.push({currency:'USD',price:parseFloat(v.market.toFixed(2)),url:(card.tcgplayer&&card.tcgplayer.url)||'',label:'TCGPlayer via pokemontcg.io'});}
+      return res.length?{source:'pokemontcg',cardName:card.name,setName:(card.set&&card.set.name)||'',prices:res}:null;
+    }catch(e){return null;}
+  }
+
+  return null; // ygo/lor/övrigt: manuell URL-länk
+}
+
+function bestSiteForCurrency(currency){
+  /* Matchar en konfigurerad sajt mot valuta — föredrar URL-matchning */
+  const cur=(currency||'').toUpperCase();
+  const patterns={EUR:['cardmarket','kortdraken'],USD:['tcgplayer','tcg'],SEK:['tradera','kortdraken','pricecharting']};
+  const sites=state.sites||[];
+  for(const p of (patterns[cur]||[])){
+    const s=sites.find(x=>(x.url||'').toLowerCase().includes(p)&&(x.currency||'').toUpperCase()===cur);
+    if(s)return s;
+  }
+  return sites.find(x=>(x.currency||'').toUpperCase()===cur)||null;
+}
+
+async function triggerAutoFetch(kind,id){
+  const obj=findObj(kind,id);if(!obj)return;
+  const btn=$('#autoFetchBtn');
+  if(btn){btn.disabled=true;btn.innerHTML=ic('refresh')+' Hämtar…';}
+  const result=await autoFetchPrices(obj);
+  if(btn){btn.disabled=false;btn.innerHTML=ic('refresh')+' Hämta automatiska priser';}
+  if(!result){toast('Inget automatiskt pris hittades — lägg till URL-länk manuellt per sajt','warn');return;}
+  let filled=0;
+  result.prices.forEach(rp=>{
+    const site=bestSiteForCurrency(rp.currency);if(!site)return;
+    const card=($('#overlay')||document).querySelector('[data-site="'+site.id+'"]');if(!card)return;
+    const pi=card.querySelector('.pe-price'),ui=card.querySelector('.pe-url');
+    if(pi&&(pi.value===''||pi.dataset.auto==='1')){pi.value=rp.price;pi.dataset.auto='1';}
+    if(ui&&!ui.value&&rp.url)ui.value=rp.url;
+    let badge=card.querySelector('.auto-badge');
+    if(!badge){badge=document.createElement('div');badge.className='auto-badge dim';badge.style.cssText='font-size:10px;margin-top:5px;';card.appendChild(badge);}
+    badge.textContent=ic('check')+' '+rp.label;
+    filled++;
+  });
+  if(filled)toast(filled+' pris hämtade — granska och justera, sedan Spara','ok');
+  else toast('Inga konfigurerade sajter matchar valutan i hämtad data','warn');
 }
 
 // Ladda session-cache så snart skriptet är inläst
