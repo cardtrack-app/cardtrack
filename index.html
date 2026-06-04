@@ -369,6 +369,11 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-3);border:1p
 .ta-msg{padding:13px;font-size:12.5px;color:var(--text-dim);text-align:center}
 .cat-hint{font-size:11px;color:var(--text-faint);margin-top:5px;display:flex;align-items:center;gap:5px}
 .cat-hint svg{width:12px;height:12px}
+.auth-gate{position:fixed;inset:0;z-index:240;background:var(--bg);display:none;align-items:center;justify-content:center;padding:20px;overflow:auto}
+.auth-gate.open{display:flex}
+.auth-gate .gate-card{width:100%;max-width:390px}
+.auth-gate .gate-brand{font-family:var(--display);font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:2px}
+.auth-gate .gate-brand span{color:var(--primary)}
 </style>
 </head>
 <body>
@@ -433,6 +438,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-3);border:1p
       <section class="page" id="page-categories"></section>
       <section class="page" id="page-settings"></section>
       <section class="page" id="page-card"></section>
+      <section class="page" id="page-admin"></section>
     </main>
   </div>
 </div>
@@ -440,6 +446,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-3);border:1p
 <div class="overlay" id="overlay"></div>
 <div class="imgviewer" id="imgviewer" onclick="closeViewer()"><button class="x" title="Stäng" onclick="closeViewer()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button><img id="imgviewerImg" src="" alt=""></div>
 <div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+<div class="auth-gate" id="authGate"></div>
 <div class="lock-screen" id="lockScreen"><div class="lock-card">
   <div class="lk"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
   <h2>CardTrack</h2>
@@ -493,7 +500,8 @@ const ICONS={
   camera:'M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   list:'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   star:'M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z',
-  expand:'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7'
+  expand:'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7',
+  shield:'M12 3l7 3v6c0 4-3 7-7 8-4-1-7-4-7-8V6z'
 };
 function ic(n){return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="'+(ICONS[n]||'')+'"/></svg>';}
 
@@ -515,6 +523,11 @@ const GRADED=/^(PSA|BGS|CGC)/;
 
 /* ---------- State ---------- */
 const STORAGE_KEY='cardtrack.v1';
+/* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
+   webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
+   i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
+const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
+const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
 let state=null;
 let charts={};
 /* App-lock (lokal kryptering) — appLock.key sätts efter upplåsning */
@@ -529,8 +542,8 @@ function defaultSettings(){
     apiKey:'',
     aiModel:'claude-sonnet-4-20250514',
     serverUrl:'http://localhost:3001',
-    supabaseUrl:'',
-    supabaseKey:'',
+    supabaseUrl:EMBED_SUPABASE_URL,
+    supabaseKey:EMBED_SUPABASE_KEY,
     vatRate:25,          // import VAT % for non-EU
     customsFee:75,       // fast tullavgift per försändelse (SEK), uppskattning
     customsThreshold:0   // VAT tas ut från första kronan vid import till EU
@@ -562,6 +575,19 @@ function load(){
   try{const raw=localStorage.getItem(STORAGE_KEY);if(raw)return JSON.parse(raw);}catch(e){}
   return null;
 }
+
+/* Tom samling för nya/utloggade användare — behåller kategorier & sajter men inga objekt */
+function freshState(){
+  const s=seedData();
+  s.items=[];s.watch=[];s.priceHistory=[];s.snapshots=[];s.savedViews=[];
+  return s;
+}
+
+/* Anslutningskonfig lagras separat så den ÖVERLEVER radering av lokal data vid utloggning */
+const CONFIG_KEY='cardtrack.cfg';
+function saveAppConfig(){try{localStorage.setItem(CONFIG_KEY,JSON.stringify({supabaseUrl:(state.settings.supabaseUrl||''),supabaseKey:(state.settings.supabaseKey||''),theme:(state.settings.theme||'dark')}));}catch(e){}}
+function loadAppConfig(){try{const r=localStorage.getItem(CONFIG_KEY);if(r)return JSON.parse(r);}catch(e){}return null;}
+function wipeLocalData(){saveAppConfig();try{localStorage.removeItem(STORAGE_KEY);}catch(e){}}
 
 /* ---------- Seed data (exempeldata) ---------- */
 function seedData(){
@@ -771,13 +797,15 @@ const NAV=[
   {grp:'Konfiguration'},
   {id:'sites',ic:'store',label:'Sajter',title:'Sajter',sub:'Hantera kortbutiker, frakt och trösklar',badge:'sites'},
   {id:'categories',ic:'tag',label:'Kategorier',title:'Kategorier',sub:'Hantera TCG-typer och färgkodning'},
-  {id:'settings',ic:'cog',label:'Inställningar',title:'Inställningar',sub:'Valutor, växelkurser, API-nycklar, backup'}
+  {id:'settings',ic:'cog',label:'Inställningar',title:'Inställningar',sub:'Valutor, växelkurser, API-nycklar, backup'},
+  {id:'admin',ic:'shield',label:'Admin',title:'Användarhantering',sub:'Hantera alla konton — kräver admin-behörighet',admin:true}
 ];
 let currentPage='dashboard';
 
 function renderNav(){
   const nav=$('#nav');
   nav.innerHTML=NAV.map(n=>{
+    if(n.admin&&!_isAdmin)return '';
     if(n.grp)return '<div class="nav-label">'+n.grp+'</div>';
     const badge=n.badge?'<span class="badge" id="nav-'+n.badge+'">0</span>':'';
     return '<a data-page="'+n.id+'" class="'+(n.id===currentPage?'active':'')+'">'+ic(n.ic)+'<span>'+n.label+'</span>'+badge+'</a>';
@@ -2029,6 +2057,7 @@ RENDERERS.settings=function(){
         +'<button class="btn ghost sm" onclick="manualPull()">'+ic('download')+'Hämta från moln</button>'
         +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px"><input type="checkbox" id="autoSyncCb" '+(session.autoSync?'checked':'')+' style="width:16px;accent-color:var(--primary)"> Auto-synk vid ändring</label>'
         +'<div style="flex:1"></div><button class="btn ghost sm" onclick="logout()">'+ic('external')+'Logga ut</button></div>'
+        +'<div style="border-top:1px solid var(--border-soft);padding-top:12px;margin-top:12px"><b style="font-size:12.5px">Tvåfaktor (2FA)</b><div id="mfaBox" style="margin-top:8px"></div></div>'
         +'<div style="margin-top:10px"><button class="btn danger sm" onclick="deleteAccount()">'+ic('trash')+'Radera konto & molndata</button></div></div>';
     }else{
       html+='<div style="border-top:1px solid var(--border-soft);padding-top:12px;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">'
@@ -2046,6 +2075,7 @@ RENDERERS.settings=function(){
     +'<button class="btn ghost sm" onclick="toggleTheme()">'+ic(s.theme==='dark'?'sun':'moon')+'Växla tema</button>'
     +'<button class="btn danger sm" onclick="resetAll()">'+ic('trash')+'Återställ allt</button></div></div>';
   $('#page-settings').innerHTML=html;
+  if(loggedIn())setTimeout(mfaRenderBox,0);
 };
 function saveRates(){$$('#page-settings [data-rate]').forEach(i=>{if(!i.disabled)state.settings.rates[i.dataset.rate]=parseFloat(i.value)||1;});state.settings.rates[state.settings.baseCurrency]=1;save();rerenderCurrent();toast('Växelkurser sparade','ok');}
 function saveImport(){state.settings.vatRate=parseFloat($('#setVat').value)||0;state.settings.customsFee=parseFloat($('#setCustoms').value)||0;save();rerenderCurrent();toast('Importinställningar sparade','ok');}
@@ -2169,11 +2199,16 @@ async function init(){
     // krypterad — kräver upplåsning
     loaded=await showLockScreen(loaded);
   }
-  state=loaded||seedData();
-  if(!loaded)save();
+  state=loaded||freshState();
+  // hydrera anslutningskonfig (överlever radering av lokal data vid utloggning)
+  const cfg=loadAppConfig();
+  if(cfg){if(!state.settings)state.settings={};if(!state.settings.supabaseUrl)state.settings.supabaseUrl=cfg.supabaseUrl||'';if(!state.settings.supabaseKey)state.settings.supabaseKey=cfg.supabaseKey||'';if(!loaded&&cfg.theme)state.settings.theme=cfg.theme;}
   // säkerställ struktur för äldre/importerad data
   state.priceHistory=state.priceHistory||[];state.snapshots=state.snapshots||[];state.watch=state.watch||[];state.savedViews=state.savedViews||[];
   state.settings=Object.assign(defaultSettings(),state.settings||{});
+  if(!state.settings.supabaseUrl)state.settings.supabaseUrl=EMBED_SUPABASE_URL;
+  if(!state.settings.supabaseKey)state.settings.supabaseKey=EMBED_SUPABASE_KEY;
+  saveAppConfig();
 
   applyTheme();
   renderNav();
@@ -2181,10 +2216,11 @@ async function init(){
   navigate('dashboard');
   updateTicker();
   checkServer();
+  updateGate();   // visa inloggnings-spärren direkt om man inte är inloggad
   // koppla basvaluta-väljaren när settings renderas (delegerat)
   document.addEventListener('change',e=>{if(e.target&&e.target.id==='setBase')onBaseChange();});
   // återställ Supabase-session i bakgrunden, uppdatera vyn när klar
-  initSupabase().then(()=>{if(loggedIn())rerenderCurrent();});
+  initSupabase().then(()=>{if(loggedIn()){rerenderCurrent();checkAdmin();}});
 }
 window.addEventListener('DOMContentLoaded',init);
 
@@ -2192,6 +2228,8 @@ window.addEventListener('DOMContentLoaded',init);
    MOLNSYNKNING & INLOGGNING (Supabase: auth + databas)
    ============================================================ */
 let sbClient=null;
+let _isAdmin=false;          // sätts via Edge Function-kontroll efter inloggning
+let _authChecked=false;      // true när Supabase-sessionen verifierats vid uppstart
 let session=null;            // UI-cache: {email, autoSync, lastSync}
 const SESSION_KEY='cardtrack.session';
 let _cloudPushTimer=null;
@@ -2200,6 +2238,38 @@ function loadSession(){try{const r=localStorage.getItem(SESSION_KEY);if(r)sessio
 function saveSession(){if(session)localStorage.setItem(SESSION_KEY,JSON.stringify(session));else localStorage.removeItem(SESSION_KEY);}
 
 function supabaseReady(){return !!(state.settings.supabaseUrl&&state.settings.supabaseKey);}
+
+/* ---- Inloggnings-spärr: inget visas förrän man är inloggad ---- */
+function gateOpen(){
+  if(!supabaseReady())return false;                 // ej konfigurerat → spärra inte (annars utelåst)
+  if(loggedIn())return false;                       // inloggad → app
+  if(!_authChecked && session && session.email)return false; // optimistiskt under uppstart
+  return true;
+}
+function updateGate(){
+  const g=$('#authGate');if(!g)return;
+  const open=gateOpen();
+  if(open)renderGate(g.dataset.mode||'login');
+  g.classList.toggle('open',open);
+  document.body.style.overflow=open?'hidden':'';
+}
+function setGateMode(m){const g=$('#authGate');if(g)g.dataset.mode=m;renderGate(m);}
+function renderGate(mode){
+  const g=$('#authGate');if(!g)return;
+  const isReg=mode==='register';
+  g.innerHTML='<div class="card gate-card">'
+    +'<div class="gate-brand">Card<span>Track</span></div>'
+    +'<div class="dim" style="font-size:12.5px;margin-bottom:14px">Logga in eller skapa ett konto för att komma åt din samling.</div>'
+    +'<form id="authForm" onsubmit="event.preventDefault();doAuth('+(isReg?'true':'false')+')"><div class="form-grid">'
+    +'<div class="fld full"><label>E-post <span class="req">*</span></label><input name="email" type="email" required autocomplete="email" autofocus></div>'
+    +'<div class="fld full"><label>Lösenord <span class="req">*</span></label><input name="password" type="password" required minlength="6" autocomplete="'+(isReg?'new-password':'current-password')+'"></div>'
+    +'</div>'+(isReg?'':'<div style="margin-top:8px"><button type="button" class="btn ghost sm" style="padding:4px 0;background:none;border:none;color:var(--primary)" onclick="forgotPassword()">Glömt lösenord?</button></div>')
+    +'<button type="submit" style="display:none"></button></form>'
+    +'<div id="authErr" style="color:var(--loss);margin:10px 0 0;font-size:12.5px;min-height:18px"></div>'
+    +'<button class="btn primary" style="width:100%;margin-top:12px;justify-content:center" onclick="doAuth('+(isReg?'true':'false')+')">'+ic('check')+(isReg?'Registrera':'Logga in')+'</button>'
+    +'<button class="btn ghost" style="width:100%;margin-top:8px;justify-content:center" onclick="setGateMode(\''+(isReg?'login':'register')+'\')">'+(isReg?'Har redan konto → Logga in':'Skapa nytt konto →')+'</button>'
+    +'</div>';
+}
 function getSB(){
   if(sbClient)return sbClient;
   if(!supabaseReady())return null;
@@ -2208,19 +2278,20 @@ function getSB(){
   return sbClient;
 }
 async function initSupabase(){
-  const sb=getSB();if(!sb){session=null;saveSession();return;}
+  const sb=getSB();if(!sb){session=null;saveSession();_authChecked=true;updateGate();return;}
   try{
     const {data}=await sb.auth.getSession();
     if(data&&data.session){session=Object.assign({autoSync:true,lastSync:null},session||{},{email:data.session.user.email});}
     else{session=null;}
     saveSession();
+    _authChecked=true;updateGate();
     sb.auth.onAuthStateChange((ev,s)=>{
       if(ev==='PASSWORD_RECOVERY'){setTimeout(newPasswordModal,300);}
       if(s&&s.user){session=Object.assign({autoSync:true,lastSync:null},session||{},{email:s.user.email});}
-      else{session=null;}
-      saveSession();
+      else{session=null;_isAdmin=false;}
+      saveSession();updateGate();
     });
-  }catch(e){console.warn('Supabase init:',e.message);}
+  }catch(e){console.warn('Supabase init:',e.message);_authChecked=true;updateGate();}
 }
 function loggedIn(){return !!(session&&session.email&&sbClient);}
 async function sbUserId(){const sb=getSB();if(!sb)return null;const {data}=await sb.auth.getUser();return data&&data.user?data.user.id:null;}
@@ -2301,13 +2372,16 @@ async function manualSync(){try{await cloudPush();toast('Synkad till molnet','ok
 function saveSupabaseConfig(){
   state.settings.supabaseUrl=$('#sbUrl').value.trim();
   state.settings.supabaseKey=$('#sbKey').value.trim();
-  sbClient=null;save();
+  sbClient=null;save();saveAppConfig();
   initSupabase().then(()=>rerenderCurrent());
   toast('Supabase-inställningar sparade','ok');
 }
 async function logout(){
+  if(!confirm('Logga ut? Din lokala data på den här enheten rensas (den finns kvar i molnet).'))return;
   const sb=getSB();if(sb)try{await sb.auth.signOut();}catch(e){}
-  session=null;saveSession();rerenderCurrent();toast('Utloggad','warn');
+  session=null;saveSession();_isAdmin=false;
+  wipeLocalData();                 // radera lokal samling (behåller anslutningskonfig)
+  location.reload();               // → init → spärr (tom vy)
 }
 function authModal(mode){
   if(!supabaseReady()){toast('Ange Supabase-URL och nyckel under Inställningar först','warn');navigate('settings');return;}
@@ -2324,32 +2398,49 @@ function authModal(mode){
   openModal(html);
 }
 async function doAuth(isReg){
-  const f=$('#authForm');const err=$('#authErr');err.textContent='';
+  const f=$('#authForm');const err=$('#authErr');if(err)err.textContent='';
   const email=(f.email.value||'').trim().toLowerCase();const password=f.password.value;
-  if(!email||!password){err.textContent='Fyll i e-post och lösenord';return;}
-  const sb=getSB();if(!sb){err.textContent='Supabase ej konfigurerat';return;}
+  if(!email||!password){if(err)err.textContent='Fyll i e-post och lösenord';return;}
+  const sb=getSB();if(!sb){if(err)err.textContent='Supabase ej konfigurerat';return;}
   try{
     if(isReg){
       const {data,error}=await sb.auth.signUp({email:email,password:password});
       if(error)throw new Error(error.message);
       if(!data.session){closeModal();toast('Konto skapat — bekräfta via mejlet och logga sedan in','ok');return;}
       session={email:email,autoSync:true,lastSync:null};saveSession();
-      try{await cloudPush();}catch(e){}
     }else{
       const {error}=await sb.auth.signInWithPassword({email:email,password:password});
       if(error)throw new Error(error.message);
+      // Tvåfaktor (TOTP) om kontot har en verifierad authenticator
+      const {data:lf}=await sb.auth.mfa.listFactors();
+      const totp=lf&&lf.totp&&lf.totp.find(x=>x.status==='verified');
+      if(totp){
+        const code=(prompt('Ange den 6-siffriga koden från din authenticator-app:')||'').trim();
+        if(!code){await sb.auth.signOut();throw new Error('Tvåfaktor krävs för att logga in');}
+        const {data:ch,error:e1}=await sb.auth.mfa.challenge({factorId:totp.id});
+        if(e1){await sb.auth.signOut();throw new Error(e1.message);}
+        const {error:e2}=await sb.auth.mfa.verify({factorId:totp.id,challengeId:ch.id,code:code});
+        if(e2){await sb.auth.signOut();throw new Error('Fel kod — försök igen');}
+      }
       session={email:email,autoSync:true,lastSync:null};saveSession();
-      try{
-        const remote=await cloudPull();const local=localStorage.getItem(STORAGE_KEY);
-        if(remote&&remote!==local){
-          if(confirm('Det finns data i ditt molnkonto. HÄMTA molnversionen (ersätter lokal data)?\n\nAvbryt = pusha din lokala data till molnet i stället.')){
-            localStorage.setItem(STORAGE_KEY,remote);closeModal();toast('Hämtat — laddar om…','ok');setTimeout(()=>location.reload(),700);return;
-          }else{await cloudPush();}
-        }else if(!remote){await cloudPush();}
-      }catch(e){try{await cloudPush();}catch(e2){}}
     }
-    closeModal();toast(isReg?'Inloggad':'Inloggad','ok');rerenderCurrent();
-  }catch(e){err.textContent=e.message;}
+    // Aktiv session finns nu — molnet styr vad som visas
+    const remote=await cloudPull();          // sträng eller null
+    if(remote){
+      localStorage.setItem(STORAGE_KEY,remote);             // ladda kontots data
+    }else{
+      const localBlob=localStorage.getItem(STORAGE_KEY);
+      let localHasItems=false;try{const o=JSON.parse(localBlob);localHasItems=!!(o&&((o.items&&o.items.length)||(o.watch&&o.watch.length)));}catch(e){}
+      if(localHasItems && confirm('Det finns ingen data i molnet för det här kontot.\n\nOK = ladda upp din NUVARANDE lokala data till kontot.\nAvbryt = börja med en TOM samling.')){
+        await cloudPush();                                  // behåll befintlig lokal data
+      }else{
+        localStorage.setItem(STORAGE_KEY,JSON.stringify(freshState())); // tom samling
+        try{await cloudPush();}catch(e){}
+      }
+    }
+    closeModal();toast('Inloggad','ok');
+    setTimeout(()=>location.reload(),300);                  // ladda om → ren state + spärr av
+  }catch(e){if(err)err.textContent=e.message;}
 }
 document.addEventListener('change',e=>{
   if(e.target&&e.target.id==='autoSyncCb'&&session){session.autoSync=e.target.checked;saveSession();toast('Auto-synk '+(e.target.checked?'på':'av'),'ok');}
@@ -2395,9 +2486,134 @@ async function deleteAccount(){
     let full=false;
     try{const {error}=await sb.rpc('delete_user');if(!error)full=true;}catch(e){}
     try{await sb.auth.signOut();}catch(e){}
-    session=null;saveSession();rerenderCurrent();
+    session=null;saveSession();_isAdmin=false;wipeLocalData();
     toast(full?'Konto raderat':'Molndata raderad & utloggad','warn');
+    setTimeout(()=>location.reload(),600);
   }catch(e){toast('Fel: '+e.message,'err');}
+}
+
+/* ============================================================
+   ADMIN — användarhantering via Edge Function 'admin-users'
+   service_role ligger ALDRIG i frontend; funktionen kör server-side
+   och verifierar att anroparen finns i ADMIN_EMAILS innan något görs.
+   ============================================================ */
+function adminFnUrl(){return (state.settings.supabaseUrl||'').trim().replace(/\/$/,'')+'/functions/v1/admin-users';}
+async function adminCall(action,payload){
+  const sb=getSB();if(!sb)throw new Error('Supabase ej konfigurerat');
+  const {data:sd}=await sb.auth.getSession();
+  const tok=sd&&sd.session?sd.session.access_token:null;
+  if(!tok)throw new Error('Inte inloggad');
+  const r=await fetch(adminFnUrl(),{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':(state.settings.supabaseKey||'').trim()},body:JSON.stringify(Object.assign({action:action},payload||{}))});
+  let j=null;try{j=await r.json();}catch(e){}
+  if(!r.ok)throw new Error((j&&j.error)||('HTTP '+r.status));
+  return j||{};
+}
+async function checkAdmin(){
+  const was=_isAdmin;_isAdmin=false;
+  if(loggedIn()){try{const j=await adminCall('check');_isAdmin=!!(j&&j.isAdmin);}catch(e){_isAdmin=false;}}
+  if(_isAdmin!==was)renderNav();
+  if(!_isAdmin&&currentPage==='admin')navigate('dashboard');
+}
+RENDERERS.admin=function(){
+  const el=$('#page-admin');
+  if(!loggedIn()){el.innerHTML='<div class="card"><div class="empty"><div class="big">'+ic('shield')+'</div><h3>Logga in först</h3><p>Användarhantering kräver att du är inloggad som admin.</p><button class="btn primary" onclick="navigate(\'settings\')">Till inställningar</button></div></div>';return;}
+  if(!_isAdmin){el.innerHTML='<div class="card"><div class="empty"><div class="big">'+ic('shield')+'</div><h3>Ingen admin-behörighet</h3><p>Ditt konto är inte admin. Lägg till din e-post i Edge Function-secreten <b>ADMIN_EMAILS</b> och ladda om.</p></div></div>';return;}
+  el.innerHTML=sectionHead('Användarhantering','<button class="btn ghost sm" onclick="adminLoadUsers()">'+ic('refresh')+'Uppdatera</button>')
+    +'<div class="card"><div class="note-banner">'+ic('alert')+'<div>Dessa åtgärder gäller <b>alla</b> användares konton och kan inte ångras. <b>Banna</b> spärrar inloggning; <b>radera</b> tar bort konto + molndata permanent. Admin-konton är skyddade.</div></div>'
+    +'<div id="adminUsers"><div class="dim" style="padding:12px">Laddar användare…</div></div></div>';
+  adminLoadUsers();
+};
+async function adminLoadUsers(){
+  const box=$('#adminUsers');if(!box)return;
+  box.innerHTML='<div class="dim" style="padding:12px">Laddar användare…</div>';
+  try{
+    const j=await adminCall('list');const users=(j&&j.users)||[];
+    if(!users.length){box.innerHTML='<div class="dim" style="padding:12px">Inga användare hittades.</div>';return;}
+    let h='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th>E-post</th><th>Skapad</th><th>Senaste inlogg</th><th>Status</th><th></th></tr></thead><tbody>';
+    users.forEach(u=>{
+      const created=u.created_at?u.created_at.slice(0,10):'—';
+      const last=u.last_sign_in_at?u.last_sign_in_at.slice(0,10):'—';
+      h+='<tr><td><div class="nm">'+esc(u.email||'(ingen e-post)')+(u.is_admin?' <span class="pill up">admin</span>':'')+'</div></td>'
+        +'<td>'+esc(created)+'</td><td>'+esc(last)+'</td>'
+        +'<td>'+(u.banned?'<span class="pill down">bannad</span>':'<span class="pill up">aktiv</span>')+'</td>'
+        +'<td><div class="row-actions" style="justify-content:flex-end">';
+      if(u.is_admin){h+='<span class="faint" style="font-size:11px">skyddad</span>';}
+      else{
+        h+=(u.banned?'<button class="btn ghost sm" onclick="adminSetBan(\''+u.id+'\',false)">'+ic('check')+'Avbanna</button>':'<button class="btn ghost sm" onclick="adminSetBan(\''+u.id+'\',true)">'+ic('alert')+'Banna</button>')
+          +'<button class="btn danger sm" onclick="adminDeleteUser(\''+u.id+'\')">'+ic('trash')+'Radera</button>';
+      }
+      h+='</div></td></tr>';
+    });
+    h+='</tbody></table></div></div>';
+    box.innerHTML=h;
+  }catch(e){box.innerHTML='<div class="loss" style="padding:12px">'+ic('alert')+' Kunde inte hämta användare: '+esc(e.message)+'<div class="dim" style="font-size:12px;margin-top:6px">Är Edge Function <b>admin-users</b> deployad och din e-post i <b>ADMIN_EMAILS</b>?</div></div>';}
+}
+async function adminSetBan(id,ban){
+  if(!confirm(ban?'Banna denna användare? De kan inte logga in förrän kontot avbannas.':'Avbanna denna användare?'))return;
+  try{await adminCall(ban?'ban':'unban',{userId:id});toast(ban?'Användare bannad':'Användare avbannad','ok');adminLoadUsers();}
+  catch(e){toast('Fel: '+e.message,'err');}
+}
+async function adminDeleteUser(id){
+  if(!confirm('Radera detta konto permanent? Konto + molndata tas bort och går inte att ångra.'))return;
+  if(!confirm('Helt säker? Detta kan inte ångras.'))return;
+  try{await adminCall('delete',{userId:id});toast('Användare raderad','warn');adminLoadUsers();}
+  catch(e){toast('Fel: '+e.message,'err');}
+}
+
+/* ============================================================
+   TVÅFAKTOR (MFA / TOTP) via Supabase Auth — authenticator-app
+   ============================================================ */
+async function mfaRenderBox(){
+  const box=$('#mfaBox');if(!box)return;
+  if(!loggedIn()){box.innerHTML='';return;}
+  box.innerHTML='<div class="dim" style="font-size:12px;padding:2px 0">Kontrollerar tvåfaktor…</div>';
+  let f={totp:[]};
+  try{const {data,error}=await getSB().auth.mfa.listFactors();if(error)throw error;f=data||{totp:[]};}
+  catch(e){box.innerHTML='<div class="dim" style="font-size:12px">Kunde inte läsa 2FA-status.</div>';return;}
+  const v=(f.totp||[]).find(x=>x.status==='verified');
+  if(v){
+    box.innerHTML='<span class="pill up">'+ic('check')+' Tvåfaktor aktiv</span> '
+      +'<button class="btn ghost sm" onclick="mfaDisable(\''+v.id+'\')">'+ic('x')+'Stäng av 2FA</button>';
+  }else{
+    box.innerHTML='<button class="btn ghost sm" onclick="mfaEnroll()">'+ic('shield')+'Aktivera tvåfaktor (authenticator)</button>'
+      +'<div class="dim" style="font-size:11px;margin-top:4px">Engångskod från t.ex. Google Authenticator, Microsoft Authenticator eller Authy. Krävs sedan vid varje inloggning.</div>';
+  }
+}
+async function mfaEnroll(){
+  const sb=getSB();if(!sb)return;
+  try{
+    // städa bort ev. halvfärdiga factors först
+    const {data:lf}=await sb.auth.mfa.listFactors();
+    if(lf&&lf.totp)for(const x of lf.totp){if(x.status==='unverified'){try{await sb.auth.mfa.unenroll({factorId:x.id});}catch(e){}}}
+    const {data,error}=await sb.auth.mfa.enroll({factorType:'totp'});
+    if(error)throw new Error(error.message);
+    const fid=data.id,qr=data.totp.qr_code,secret=data.totp.secret;
+    openModal('<h3 style="font-family:var(--display);margin:0 0 8px">Aktivera tvåfaktor</h3>'
+      +'<div class="dim" style="font-size:12.5px;margin-bottom:10px">Skanna QR-koden i din authenticator-app och ange den 6-siffriga koden.</div>'
+      +'<div style="text-align:center;margin:10px 0"><img src="'+qr+'" alt="QR" style="width:200px;height:200px;background:#fff;border-radius:8px;padding:8px"></div>'
+      +'<div class="dim" style="font-size:11px;word-break:break-all;margin-bottom:10px">Kan du inte skanna? Nyckel: <b>'+esc(secret)+'</b></div>'
+      +'<div class="fld full"><label>6-siffrig kod</label><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"></div>'
+      +'<div id="mfaErr" style="color:var(--loss);font-size:12.5px;min-height:18px;margin-top:6px"></div>'
+      +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn primary sm" onclick="mfaVerifyEnroll(\''+fid+'\')">'+ic('check')+'Verifiera & aktivera</button><button class="btn ghost sm" onclick="closeModal()">Avbryt</button></div>');
+  }catch(e){toast('Fel: '+e.message,'err');}
+}
+async function mfaVerifyEnroll(fid){
+  const sb=getSB();const el=$('#mfaErr');if(el)el.textContent='';
+  const code=(($('#mfaCode')&&$('#mfaCode').value)||'').trim();
+  if(!code){if(el)el.textContent='Ange koden från appen';return;}
+  try{
+    const {data:ch,error:e1}=await sb.auth.mfa.challenge({factorId:fid});
+    if(e1)throw new Error(e1.message);
+    const {error:e2}=await sb.auth.mfa.verify({factorId:fid,challengeId:ch.id,code:code});
+    if(e2)throw new Error('Fel kod — försök igen');
+    closeModal();toast('Tvåfaktor aktiverat','ok');mfaRenderBox();
+  }catch(e){if(el)el.textContent=e.message;else toast(e.message,'err');}
+}
+async function mfaDisable(fid){
+  if(!confirm('Stänga av tvåfaktor? Kontot skyddas då bara av lösenord.'))return;
+  const sb=getSB();
+  try{const {error}=await sb.auth.mfa.unenroll({factorId:fid});if(error)throw new Error(error.message);toast('Tvåfaktor avstängt','warn');mfaRenderBox();}
+  catch(e){toast('Fel: '+e.message,'err');}
 }
 
 // Ladda session-cache så snart skriptet är inläst
