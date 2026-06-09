@@ -374,6 +374,13 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-3);border:1p
 .auth-gate .gate-card{width:100%;max-width:390px}
 .auth-gate .gate-brand{font-family:var(--display);font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:2px}
 .auth-gate .gate-brand span{color:var(--primary)}
+.cond.sealed{background:rgba(245,196,81,.15);color:var(--primary);border:1px solid rgba(245,196,81,.3);font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;letter-spacing:.3px}
+.toggle{position:relative;display:inline-block;width:38px;height:21px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle span{position:absolute;inset:0;background:var(--border);border-radius:21px;transition:.2s;cursor:pointer}
+.toggle span:before{content:'';position:absolute;height:15px;width:15px;left:3px;top:3px;background:var(--text-dim);border-radius:50%;transition:.2s}
+.toggle input:checked+span{background:var(--primary)}
+.toggle input:checked+span:before{transform:translateX(17px);background:#1a1c22}
 </style>
 </head>
 <body>
@@ -439,6 +446,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-3);border:1p
       <section class="page" id="page-settings"></section>
       <section class="page" id="page-card"></section>
       <section class="page" id="page-admin"></section>
+      <section class="page" id="page-shared"></section>
     </main>
   </div>
 </div>
@@ -517,7 +525,17 @@ function daysAgo(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOSt
 /* ---------- Constants ---------- */
 const CURRENCIES=['SEK','EUR','USD','GBP','JPY'];
 const CURRENCY_SYMBOL={SEK:'kr',EUR:'€',USD:'$',GBP:'£',JPY:'¥'};
-const PRODUCT_TYPES=['Enskilt kort','Elite Trainer Box','Booster Box / Display','Booster Pack','Starter / Theme Deck','Tin / Blister','Special / Premium Collection','Sealed Case','Komplett set','Promo / Exklusiv','Gift Set','Funko Pop','Övrigt'];
+const SEALED_TYPES=new Set(['Elite Trainer Box','Booster Box / Display','Booster Pack','Starter / Theme Deck','Tin / Blister','Special / Premium Collection','Sealed Case','Komplett set','Gift Set']);
+function isSealedType(t){return SEALED_TYPES.has(t);}
+function onTypeChange(type){
+  /* Auto-sätt condition till Förseglad när sealed produkttyp väljs */
+  const cond=$('[name="condition"]');
+  if(cond&&isSealedType(type)&&!cond.value.includes('Sealed'))cond.value='Sealed / Förseglad';
+  if(cond&&type==='Enskilt kort'&&cond.value==='Sealed / Förseglad')cond.value='RAW (ogradat)';
+  // Uppdatera sealed-indikatorn
+  const ind=$('#sealedInd');
+  if(ind)ind.style.display=isSealedType(type)?'flex':'none';
+}
 const CONDITIONS=['RAW (ogradat)','Mint','Near Mint','Lightly Played','Played','PSA 10','PSA 9','PSA 8','PSA 7','PSA ≤6','BGS 10','BGS 9.5','BGS 9','CGC 10','CGC 9.5','Sealed / Förseglad'];
 const GRADED=/^(PSA|BGS|CGC)/;
 
@@ -544,6 +562,8 @@ function defaultSettings(){
     serverUrl:'http://localhost:3001',
     supabaseUrl:EMBED_SUPABASE_URL,
     supabaseKey:EMBED_SUPABASE_KEY,
+    publicCollection:false,
+    displayName:'',
     vatRate:25,          // import VAT % for non-EU
     customsFee:75,       // fast tullavgift per försändelse (SEK), uppskattning
     customsThreshold:0   // VAT tas ut från första kronan vid import till EU
@@ -798,13 +818,15 @@ const NAV=[
   {id:'sites',ic:'store',label:'Sajter',title:'Sajter',sub:'Hantera kortbutiker, frakt och trösklar',badge:'sites'},
   {id:'categories',ic:'tag',label:'Kategorier',title:'Kategorier',sub:'Hantera TCG-typer och färgkodning'},
   {id:'settings',ic:'cog',label:'Inställningar',title:'Inställningar',sub:'Valutor, växelkurser, API-nycklar, backup'},
-  {id:'admin',ic:'shield',label:'Admin',title:'Användarhantering',sub:'Hantera alla konton — kräver admin-behörighet',admin:true}
+  {id:'admin',ic:'shield',label:'Admin',title:'Användarhantering',sub:'Hantera alla konton — kräver admin-behörighet',admin:true},
+  {id:'shared',ic:'eye',label:'',title:'Delad samling',sub:'Skrivskyddad vy',hidden:true}
 ];
 let currentPage='dashboard';
 
 function renderNav(){
   const nav=$('#nav');
   nav.innerHTML=NAV.map(n=>{
+    if(n.hidden)return '';
     if(n.admin&&!_isAdmin)return '';
     if(n.grp)return '<div class="nav-label">'+n.grp+'</div>';
     const badge=n.badge?'<span class="badge" id="nav-'+n.badge+'">0</span>':'';
@@ -900,7 +922,8 @@ async function checkServer(){
 function catTag(id){const c=catById(id);if(!c)return '<span class="cat-tag">—</span>';
   return '<span class="cat-tag" style="background:'+hexA(c.color,.14)+';color:'+c.color+'"><span class="swatch" style="background:'+c.color+'"></span>'+esc(shortCat(c.name))+'</span>';}
 function shortCat(n){return n.replace(' TCG','').replace(': The Gathering','').replace('Disney ','').replace(' / Samlarobjekt','');}
-function condTag(c){const g=GRADED.test(c);return '<span class="cond'+(g?' graded':'')+'">'+esc(c||'—')+'</span>';}
+function condTag(c){const g=GRADED.test(c);const s=c==='Sealed / Förseglad';return '<span class="cond'+(g?' graded':s?' sealed':'')+'">'+esc(c||'—')+'</span>';}
+function typeTag(t){if(!t||t==='Enskilt kort')return '';return '<span class="pill flat" style="font-size:10px">'+esc(t)+'</span>';}
 function itemPhotos(it){return (it&&it.photos)?it.photos:[];}
 // vald primärbild: eget foto om imgPref='photo' och foton finns, annars officiell, annars första fotot
 function primaryImage(it){
@@ -1080,6 +1103,7 @@ RENDERERS.collection=function(){
     +['value|Värde','profit|Vinst (kr)','profitpct|Vinst (%)','date|Inköpsdatum','name|Namn'].map(o=>{const[v,l]=o.split('|');return '<option value="'+v+'" '+(collFilter.sort===v?'selected':'')+'>'+l+'</option>';}).join('')
   +'</select>'
   +'<button class="btn primary" onclick="itemForm()">'+ic('plus')+'Lägg till objekt</button>'
+  +'<button class="btn ghost" onclick="updateAllPrices()" title="Hämta aktuella priser för alla MTG och Pokémon-objekt">'+ic('refresh')+'</button>'
   +'<div class="view-toggle"><button class="'+(collFilter.view==='list'?'active':'')+'" onclick="setCollView(\'list\')" title="Tabellvy">'+ic('list')+'</button>'
     +'<button class="'+(collFilter.view==='gallery'?'active':'')+'" onclick="setCollView(\'gallery\')" title="Gallerivy">'+ic('grid')+'</button></div>'
   +'<button class="btn ghost" onclick="exportData()" title="Exportera JSON">'+ic('download')+'</button>'
@@ -1175,6 +1199,7 @@ function itemDetail(id){
     +'</div>';
   if(it.cert)html+='<div class="note-banner">'+ic('check')+'<div>Graderat objekt — cert: <b class="num">'+esc(it.cert)+'</b></div></div>';
   if(it.notes)html+='<div class="note-banner">'+ic('alert')+'<div>'+esc(it.notes)+'</div></div>';
+  if(it.extra&&Object.keys(it.extra).length){const EL={player:'Spelare',sport:'Sport',year:'År',team:'Lag',serial:'Serial',maker:'Tillverkare',funkoline:'Kollektion',funkono:'Figur#',exclusive:'Exklusivitet',vaulted:'Vaultad'};const rows=Object.entries(it.extra).filter(([,v])=>v!==''&&v!==false).map(([k,v])=>'<span class="dim" style="font-size:11px">'+esc(EL[k]||k)+':</span> <b>'+esc(String(v)==='true'?'Ja':v)+'</b>').join(' &nbsp;·&nbsp; ');html+='<div class="note-banner">'+ic('star')+'<div>'+rows+'</div></div>';}
   // price comparison
   html+=sectionHead('Prisjämförelse','<button class="btn sm" onclick="priceEditor(\'item\',\''+it.id+'\')">'+ic('edit')+'Uppdatera priser</button>');
   html+='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th>Sajt</th><th class="right">Pris</th><th class="right">Frakt</th><th class="right">Totalt</th><th></th></tr></thead><tbody>'+priceRows(it)+'</tbody></table></div></div>';
@@ -1378,6 +1403,7 @@ function savePrices(kind,id){
   obj.prices=newPrices;
   save();rerenderCurrent();
   toast(changed?changed+' pris uppdaterade':'Priser sparade','ok');
+  if(kind==='watch')checkPriceAlerts();
   if(kind==='watch')editWatch(id);else itemDetail(id);
 }
 
@@ -1421,15 +1447,19 @@ function itemForm(id){
   let html='<div class="modal-head"><h3>'+(it?'Redigera objekt':'Lägg till objekt')+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
   +'<div class="modal-body"><form id="itemFormEl"><div class="form-grid">'
   +'<div class="fld full"><label>Namn <span class="req">*</span></label><div class="ta-wrap"><input name="name" id="taInput" autocomplete="off" required value="'+esc(d.name||'')+'" placeholder="Börja skriv kort- eller setnamn…"><div class="ta-results" id="taResults"></div></div><div class="cat-hint" id="taHint"></div></div>'
-  +'<div class="fld"><label>Kategori <span class="req">*</span></label><select name="cat" id="taCat">'+catOptions(d.cat)+'</select></div>'
+  +'<div class="fld"><label>Kategori <span class="req">*</span></label><select name="cat" id="taCat" onchange="updateExtraFields(this.value)">'+catOptions(d.cat)+'</select></div>'
   +'<div class="fld"><label>Språk</label><select name="language" id="taLang">'+langOptions(d.language||'en')+'</select></div>'
   +'<div class="fld"><label>Set / serie</label><input name="set" value="'+esc(d.set||'')+'" placeholder="t.ex. SV: 151"></div>'
-  +'<div class="fld"><label>Produkttyp</label><select name="type">'+opt(PRODUCT_TYPES,d.type)+'</select></div>'
+  +'<div class="fld"><label>Produkttyp</label><select name="type" onchange="onTypeChange(this.value)">'+opt(PRODUCT_TYPES,d.type)+'</select></div>'
   +'<div class="fld"><label>Skick</label><select name="condition">'+opt(CONDITIONS,d.condition)+'</select></div>'
+  +'<div id="sealedInd" style="display:'+(isSealedType(d.type)?'flex':'none')+';align-items:center;gap:8px;margin-bottom:4px"><span class="pill up">'+ic('box')+' Förseglad produkt</span><span class="dim" style="font-size:11px">Kondition satt till "Sealed / Förseglad" automatiskt</span></div>'
   +'<div class="fld"><label>Antal</label><input name="qty" type="number" min="1" step="1" value="'+(d.qty||1)+'"></div>'
   +'<div class="fld"><label>PSA/BGS/CGC cert-nr</label><input name="cert" value="'+esc(d.cert||'')+'" placeholder="om gradat"></div>'
   +'<div class="fld full"><label>Officiell bild-URL</label><input name="image" type="url" value="'+esc(d.image||'')+'" placeholder="https://… (hämtas oftast automatiskt)"></div>'
   +(it?('<div class="fld full"><label>Egna foton av ditt fysiska kort</label>'+photoFormBlock(it)+'</div>'):'<div class="fld full"><div class="dim" style="font-size:12px">'+ic('camera')+' Egna foton kan laddas upp på kortets detaljsida efter att du sparat objektet.</div></div>')
+  +'</div>'
+  // Extrafält (sportkort, Funko) — visas/döljs av updateExtraFields
+  +'<div id="extraSection" style="'+(extraFieldsFor(d.cat)?'':'display:none')+';border-top:1px solid var(--border-soft);padding-top:12px;margin-top:4px"><b id="extraTitle" style="font-size:12.5px">Extrafält — '+(d.cat==='fnk'?'Funko Pop':'Sportkort')+'</b><div id="extraFields">'+extraFieldsFor(d.cat,d.extra)+'</div></div>'
   +'<div class="fld"><label>Inköpspris (per enhet)</label><input name="buyPrice" type="number" step="0.01" value="'+(d.buyPrice!=null?d.buyPrice:'')+'"></div>'
   +'<div class="fld"><label>Valuta</label><select name="buyCurrency">'+curOptions(d.buyCurrency)+'</select></div>'
   +'<div class="fld"><label>Frakt vid köp (total)</label><input name="buyShipping" type="number" step="0.01" value="'+(d.buyShipping!=null?d.buyShipping:'')+'"></div>'
@@ -1452,6 +1482,14 @@ function saveItem(id){
     buyShipping:f.buyShipping.value===''?0:parseFloat(f.buyShipping.value),buyDate:f.buyDate.value,
     seller:f.seller.value.trim(),tags:f.tags.value.split(',').map(t=>t.trim()).filter(Boolean),notes:f.notes.value.trim()
   };
+  // Extrafält (sportkort / Funko)
+  const extra={};let hasExtra=false;
+  f.querySelectorAll('[name^="extra_"]').forEach(inp=>{
+    const k=inp.name.replace('extra_','');
+    const v=inp.type==='checkbox'?inp.checked:inp.value.trim();
+    if(v!==''&&v!==false){extra[k]=v;hasExtra=true;}
+  });
+  if(hasExtra)data.extra=extra;
   if(id){const it=itemById(id);Object.assign(it,data);toast('Objekt uppdaterat','ok');}
   else{state.items.push(Object.assign({id:uid(),prices:[]},data));toast('Objekt tillagt — lägg nu till priser','ok');}
   save();closeModal();rerenderCurrent();
@@ -1481,6 +1519,8 @@ RENDERERS.watchlist=function(){
   const hits=state.watch.filter(w=>{const bb=bestBuyEntry(w);return bb&&bb.totalBase<=toBase(w.targetPrice,w.targetCurrency);}).length;
   let html='<div class="toolbar">'
     +'<div class="search">'+ic('search')+'<input id="watchSearch" placeholder="Sök bevakningar…"></div>'
+    +'<button class="btn ghost sm" onclick="updateAllPrices()" title="Hämta aktuella priser för alla MTG och Pokémon-objekt">'+ic('refresh')+'Uppdatera priser</button>'
+    +'<button class="btn ghost sm" onclick="requestNotifPermission()" title="Aktivera webbläsarnotiser när prisål nås">'+ic('bell')+'Notiser</button>'
     +'<button class="btn primary" onclick="watchForm()">'+ic('plus')+'Ny bevakning</button></div>';
   html+='<div class="grid kpis" style="margin-bottom:18px">'
     + kpi('Bevakningar',state.watch.length+'','<span class="dim">objekt på köplistan</span>','eye')
@@ -2074,6 +2114,18 @@ RENDERERS.settings=function(){
         +'<button class="btn ghost sm" onclick="manualPull()">'+ic('download')+'Hämta från moln</button>'
         +'<label style="display:flex;align-items:center;gap:6px;font-size:12.5px"><input type="checkbox" id="autoSyncCb" '+(session.autoSync?'checked':'')+' style="width:16px;accent-color:var(--primary)"> Auto-synk vid ändring</label>'
         +'<div style="flex:1"></div><button class="btn ghost sm" onclick="logout()">'+ic('external')+'Logga ut</button></div>'
+        +'<div style="border-top:1px solid var(--border-soft);padding-top:12px;margin-top:12px"><b style="font-size:12.5px">Dela din samling</b>'
+        +'<div style="margin-top:8px;display:flex;align-items:center;gap:10px">'
+        +'<label class="toggle"><input type="checkbox" id="publicToggle"'+(s.publicCollection?' checked':'')+' onchange="togglePublicCollection(this.checked)"><span></span></label>'
+        +'<span style="font-size:13px">'+(s.publicCollection?'Samlingen är <b>publik</b>':'Samlingen är <b>privat</b>')+'</span></div>'
+        +(s.publicCollection
+          ?'<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+            +'<input type="text" readonly value="'+esc(shareLink())+'" style="flex:1;min-width:0;font-size:11px;font-family:monospace;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text)">'
+            +'<button class="btn ghost sm" onclick="copyShareLink()">'+ic('copy')+'Kopiera länk</button>'
+            +'</div>'
+            +'<div class="dim" style="font-size:11px;margin-top:6px">Alla inloggade användare med länken kan se dina kort (utan priser).</div>'
+          :'<div class="dim" style="font-size:11px;margin-top:6px">Aktivera för att dela din samling med andra via en länk.</div>')
+        +'</div>'
         +'<div style="border-top:1px solid var(--border-soft);padding-top:12px;margin-top:12px"><b style="font-size:12.5px">Tvåfaktor (2FA)</b><div id="mfaBox" style="margin-top:8px"></div></div>'
         +'<div style="margin-top:10px"><button class="btn danger sm" onclick="deleteAccount()">'+ic('trash')+'Radera konto & molndata</button></div></div>';
     }else{
@@ -2249,8 +2301,8 @@ async function init(){
   // koppla basvaluta-väljaren när settings renderas (delegerat)
   document.addEventListener('change',e=>{if(e.target&&e.target.id==='setBase')onBaseChange();});
   // återställ Supabase-session i bakgrunden, uppdatera vyn när klar
-  initSupabase().then(()=>{if(loggedIn()){rerenderCurrent();checkAdmin();}});
-  autoUpdateRates(); // hämtar dagskurser tyst om de inte redan är uppdaterade idag
+  initSupabase().then(()=>{if(loggedIn()){rerenderCurrent();checkAdmin();checkSharedViewParam();}});
+  autoUpdateRates().then(checkPriceAlerts); // hämtar kurser och kontrollerar prisnotiser
 }
 window.addEventListener('DOMContentLoaded',init);
 
@@ -2290,7 +2342,7 @@ function renderGate(mode){
   g.innerHTML='<div class="card gate-card">'
     +'<div class="gate-brand">Card<span>Track</span></div>'
     +'<div class="dim" style="font-size:12.5px;margin-bottom:14px">Logga in eller skapa ett konto för att komma åt din samling.</div>'
-    +'<form id="authForm" onsubmit="event.preventDefault();doAuth('+(isReg?'true':'false')+')"><div class="form-grid">'
+    +'<form id="gateForm" onsubmit="event.preventDefault();doAuth('+(isReg?'true':'false')+')"><div class="form-grid">'
     +'<div class="fld full"><label>E-post <span class="req">*</span></label><input name="email" type="email" required autocomplete="email" autofocus></div>'
     +'<div class="fld full"><label>Lösenord <span class="req">*</span></label><input name="password" type="password" required minlength="6" autocomplete="'+(isReg?'new-password':'current-password')+'"></div>'
     +'</div>'+(isReg?'':'<div style="margin-top:8px"><button type="button" class="btn ghost sm" style="padding:4px 0;background:none;border:none;color:var(--primary)" onclick="forgotPassword()">Glömt lösenord?</button></div>')
@@ -2311,13 +2363,13 @@ async function initSupabase(){
   const sb=getSB();if(!sb){session=null;saveSession();_authChecked=true;updateGate();return;}
   try{
     const {data}=await sb.auth.getSession();
-    if(data&&data.session){session=Object.assign({autoSync:true,lastSync:null},session||{},{email:data.session.user.email});}
+    if(data&&data.session){session=Object.assign({autoSync:true,lastSync:null},session||{},{email:data.session.user.email,userId:data.session.user.id});}
     else{session=null;}
     saveSession();
     _authChecked=true;updateGate();
     sb.auth.onAuthStateChange((ev,s)=>{
       if(ev==='PASSWORD_RECOVERY'){setTimeout(newPasswordModal,300);}
-      if(s&&s.user){session=Object.assign({autoSync:true,lastSync:null},session||{},{email:s.user.email});}
+      if(s&&s.user){session=Object.assign({autoSync:true,lastSync:null},session||{},{email:s.user.email,userId:s.user.id});}
       else{session=null;_isAdmin=false;}
       saveSession();updateGate();
     });
@@ -2337,6 +2389,8 @@ async function cloudPush(){
   const blob=localStorage.getItem(STORAGE_KEY);if(!blob)throw new Error('Inget data');
   const {error}=await sb.from('collections').upsert({user_id:uid2,data:blob,updated_at:new Date().toISOString()});
   if(error)throw new Error(error.message);
+  // Synka public-status separat (kräver SQL: ALTER TABLE collections ADD COLUMN public boolean)
+  try{await sb.from('collections').update({public:!!(state.settings&&state.settings.publicCollection)}).eq('user_id',uid2);}catch(e){}
   session.lastSync=new Date().toISOString();saveSession();
 }
 async function cloudPull(){
@@ -2428,7 +2482,7 @@ function authModal(mode){
   openModal(html);
 }
 async function doAuth(isReg){
-  const f=$('#authForm');const err=$('#authErr');if(err)err.textContent='';
+  const f=$('#gateForm')||$('#authForm');const err=$('#authErr');if(err)err.textContent='';
   const email=(f.email.value||'').trim().toLowerCase();const password=f.password.value;
   if(!email||!password){if(err)err.textContent='Fyll i e-post och lösenord';return;}
   const sb=getSB();if(!sb){if(err)err.textContent='Supabase ej konfigurerat';return;}
@@ -2478,7 +2532,7 @@ document.addEventListener('change',e=>{
 
 async function forgotPassword(){
   const sb=getSB();if(!sb){toast('Supabase ej konfigurerat','warn');return;}
-  const f=$('#authForm');
+  const f=$('#gateForm')||$('#authForm');
   let email=(f&&f.email?f.email.value:'')||'';
   if(!email.trim())email=prompt('Ange din e-post så skickar vi en återställningslänk:')||'';
   email=email.trim().toLowerCase();if(!email)return;
@@ -2713,11 +2767,171 @@ async function triggerAutoFetch(kind,id){
     if(ui&&!ui.value&&rp.url)ui.value=rp.url;
     let badge=card.querySelector('.auto-badge');
     if(!badge){badge=document.createElement('div');badge.className='auto-badge dim';badge.style.cssText='font-size:10px;margin-top:5px;';card.appendChild(badge);}
-    badge.textContent=ic('check')+' '+rp.label;
+    badge.innerHTML=ic('check')+' '+esc(rp.label);
     filled++;
   });
   if(filled)toast(filled+' pris hämtade — granska och justera, sedan Spara','ok');
   else toast('Inga konfigurerade sajter matchar valutan i hämtad data','warn');
+}
+
+function applyAutoResultToItem(item,result){
+  /* Applicerar ett auto-fetch-resultat direkt på item.prices[] utan modal.
+     Returnerar antalet ändrade priser. */
+  if(!result||!result.prices)return 0;
+  let changed=0;
+  result.prices.forEach(rp=>{
+    const site=bestSiteForCurrency(rp.currency);if(!site)return;
+    const ex=(item.prices||[]).find(p=>p.siteId===site.id);
+    const newPrice=rp.price;
+    if(ex){
+      if(ex.price!==newPrice){
+        state.priceHistory.push({id:uid(),itemRef:item.id,name:item.name,siteId:site.id,price:newPrice,currency:site.currency,date:todayISO(),auto:true});
+        changed++;
+      }
+      ex.price=newPrice;ex.updated=todayISO();ex.auto=true;
+      if(!ex.url&&rp.url)ex.url=rp.url;
+    }else{
+      item.prices.push({siteId:site.id,currency:site.currency,price:newPrice,shipping:null,url:rp.url||'',updated:todayISO(),auto:true});
+      state.priceHistory.push({id:uid(),itemRef:item.id,name:item.name,siteId:site.id,price:newPrice,currency:site.currency,date:todayISO(),auto:true});
+      changed++;
+    }
+  });
+  return changed;
+}
+async function updateAllPrices(){
+  const autoCats=['mtg','pok'];
+  const all=[...state.items,...state.watch].filter(x=>autoCats.includes((x.cat||'').toLowerCase()));
+  if(!all.length){toast('Inga MTG- eller Pokémon-objekt att uppdatera','warn');return;}
+  let done=0,changed=0;
+  toast('Startar prisfetchning för '+all.length+' objekt…','ok');
+  for(const item of all){
+    item.prices=item.prices||[];
+    const result=await autoFetchPrices(item);
+    if(result)changed+=applyAutoResultToItem(item,result);
+    done++;
+    // visa progress var 5:e objekt
+    if(done%5===0&&done<all.length)toast('Hämtar '+done+'/'+all.length+'…','ok');
+  }
+  save();rerenderCurrent();
+  toast(changed?changed+' priser uppdaterade automatiskt ('+done+' objekt genomgångna)':'Alla priser kontrollerade — inga ändringar','ok');
+  checkPriceAlerts();
+}
+
+function checkPriceAlerts(){
+  /* Kontrollerar om något bevakningsobjekt nått målpriset sedan förra kontrollen.
+     Visar modal + ev. webbläsarnotis. Markerar lastNotified så samma dag inte spammas. */
+  const hits=[];
+  state.watch.forEach(w=>{
+    const bb=bestBuyEntry(w);if(!bb)return;
+    const tgt=toBase(w.targetPrice,w.targetCurrency);
+    if(bb.totalBase<=tgt&&w.lastNotified!==todayISO()){
+      w.lastNotified=todayISO();
+      hits.push({w,bb,diff:tgt-bb.totalBase,pct:Math.round((tgt-bb.totalBase)/tgt*100)});
+    }
+  });
+  if(!hits.length)return;
+  save();
+  // Valfri webbläsarnotis
+  if(typeof Notification!=='undefined'&&Notification.permission==='granted'){
+    hits.forEach(h=>{
+      try{new Notification('CardTrack \u2014 Prisnål!',{body:h.w.name+': '+fmtBase(h.bb.totalBase)+' (mål '+fmt(h.w.targetPrice,h.w.targetCurrency)+')'});}catch(e){}
+    });
+  }
+  // In-app varningsmodal
+  let html='<div class="modal-head"><h3>'+ic('target')+' Prisnål! ('+hits.length+')</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+    +'<div class="modal-body">';
+  hits.forEach(h=>{
+    const site=siteById(h.bb.entry.siteId);
+    html+='<div class="card" style="padding:14px;margin-bottom:10px;border-color:var(--primary);box-shadow:0 0 24px -10px var(--primary)">'
+      +'<div class="nm" style="margin-bottom:10px">'+ic('fire')+' '+esc(h.w.name)+'</div>'
+      +'<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">'
+      +'<div><div class="dim" style="font-size:11px">BÄSTA PRIS NU</div><div class="num gain" style="font-size:20px">'+fmtBase(h.bb.totalBase)+'</div>'+(site?'<div class="faint" style="font-size:11px">@ '+esc(site.name)+'</div>':'')+'</div>'
+      +'<div><div class="dim" style="font-size:11px">DITT MÅLPRIS</div><div class="num" style="font-size:20px">'+fmt(h.w.targetPrice,h.w.targetCurrency)+'</div></div>'
+      +'<div><div class="dim" style="font-size:11px">UNDER MÅL</div><div class="num gain" style="font-size:20px">'+fmtBase(h.diff)+' ('+h.pct+'%)</div></div>'
+      +'</div>'
+      +(h.bb.entry.url?'<div style="margin-top:12px"><a class="btn primary sm" href="'+esc(h.bb.entry.url)+'" target="_blank" rel="noopener">'+ic('external')+'Köp nu</a></div>':'')
+      +'</div>';
+  });
+  html+='</div><div class="modal-foot">'
+    +'<button class="btn ghost" onclick="navigate(\'watchlist\');closeModal()">'+ic('eye')+' Till köplistan</button>'
+    +'<button class="btn primary" onclick="closeModal()">Stäng</button>'
+    +'</div>';
+  openModal(html,true);
+}
+async function requestNotifPermission(){
+  if(typeof Notification==='undefined'){toast('Webbläsaren stödjer inte notiser','warn');return;}
+  if(Notification.permission==='granted'){toast('Notiser är redan tillåtna','ok');return;}
+  const p=await Notification.requestPermission();
+  toast(p==='granted'?'Prisnotiser aktiverade!':'Notiser nekades — prisnålar syns ändå i appen','ok');
+}
+
+/* ============================================================
+   STEG 3 — PUBLIKA SAMLINGAR & DELNINGSLÄNKAR
+   ============================================================ */
+async function cloudPullPublic(userId){
+  const sb=getSB();if(!sb)return null;
+  const {data,error}=await sb.from('collections').select('data').eq('user_id',userId).eq('public',true).maybeSingle();
+  if(error||!data)return null;
+  return data.data;
+}
+async function togglePublicCollection(isPublic){
+  state.settings.publicCollection=isPublic;
+  save();
+  try{await cloudPush();}catch(e){}
+  rerenderCurrent();
+  toast(isPublic?'Samlingen är nu publik — dela länken nedan':'Samlingen är nu privat','ok');
+}
+function shareBaseUrl(){return (location.origin+location.pathname).replace(/\/$/,'')+'/';}
+function shareLink(){const uid=session&&session.userId;return uid?shareBaseUrl()+'?view='+uid:'';}
+function copyShareLink(){const l=shareLink();if(!l){toast('Kunde inte hämta din ID — logga ut och in igen','err');return;}navigator.clipboard.writeText(l).then(()=>toast('Länk kopierad!','ok')).catch(()=>toast('Kunde inte kopiera — '+l,'warn'));}
+
+let _sharedState=null;
+let _sharedUserId=null;
+async function loadSharedState(userId){
+  const el=$('#page-shared');if(!el)return;
+  el.innerHTML='<div class="card"><div class="empty"><div class="big">'+ic('eye')+'</div><h3>Laddar samling…</h3></div></div>';
+  navigate('shared');
+  const blob=await cloudPullPublic(userId);
+  if(!blob){
+    el.innerHTML='<div class="card"><div class="empty"><div class="big">'+ic('eye')+'</div><h3>Samlingen hittades inte</h3><p>Antingen är samlingen inte publik eller har länken gått ut.</p><button class="btn primary" onclick="navigate(\'dashboard\')">Tillbaka</button></div></div>';
+    return;
+  }
+  try{_sharedState=JSON.parse(blob);}catch(e){el.innerHTML='<div class="card"><div class="empty"><h3>Kunde inte läsa samlingen</h3></div></div>';return;}
+  _sharedUserId=userId;
+  RENDERERS.shared();
+}
+RENDERERS.shared=function(){
+  const el=$('#page-shared');if(!el)return;
+  if(!_sharedState){
+    el.innerHTML='<div class="card"><div class="empty"><div class="big">'+ic('eye')+'</div><h3>Laddar samling…</h3></div></div>';
+    return;
+  }
+  const items=_sharedState.items||[];
+  const cats=_sharedState.categories||[];
+  $('#pageTitle').textContent='Delad samling';
+  $('#pageSub').textContent='Skrivskyddad vy — '+items.length+' objekt';
+  const catName=id=>{const c=cats.find(x=>x.id===id);return c?c.name:id||'';};
+  let html='<div class="note-banner" style="margin-bottom:16px">'+ic('eye')+'<div>Du ser en annans publika samling. Skrivskyddad — inga ändringar sparas.</div></div>';
+  if(!items.length){html+='<div class="card"><div class="empty"><div class="big">'+ic('layers')+'</div><h3>Samlingen är tom</h3></div></div>';el.innerHTML=html;return;}
+  html+='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th></th><th>Namn</th><th>Set</th><th>Kategori</th><th>Skick</th><th style="text-align:right">Antal</th></tr></thead><tbody>';
+  items.forEach(it=>{
+    const img=it.image||'';
+    html+='<tr>'
+      +'<td style="width:48px">'+(img?'<img src="'+esc(img)+'" style="width:40px;height:auto;border-radius:4px;vertical-align:middle" alt="">':'')+'</td>'
+      +'<td><div class="nm">'+esc(it.name||'')+'</div></td>'
+      +'<td><div class="dim">'+esc(it.set||'—')+'</div></td>'
+      +'<td><div class="dim">'+esc(catName(it.cat))+'</div></td>'
+      +'<td><div class="dim">'+esc(it.condition||'—')+'</div></td>'
+      +'<td style="text-align:right"><div class="num">'+((it.qty||1)>1?'×'+(it.qty||1):'1')+'</div></td>'
+      +'</tr>';
+  });
+  html+='</tbody></table></div></div>';
+  el.innerHTML=html;
+};
+function checkSharedViewParam(){
+  const params=new URLSearchParams(location.search);
+  const viewId=params.get('view');
+  if(viewId&&loggedIn())loadSharedState(viewId);
 }
 
 // Ladda session-cache så snart skriptet är inläst
@@ -2788,11 +3002,30 @@ async function lorcastSets(q){
   const ql=q.toLowerCase();
   return _lorSets.filter(s=>(s.name||'').toLowerCase().includes(ql)).slice(0,12).map(s=>({name:s.name,set:s.name,image:'',full:'',id:s.id,kind:'set',prov:'lor'}));
 }
+async function opCards(q){
+  /* One Piece TCG — community API med catalogFetch-fallback via proxy */
+  try{
+    const d=await catalogFetch('https://www.op-tcg.com/api/v2/cards?name='+encodeURIComponent(q)+'&limit=15');
+    if(!d||!Array.isArray(d.cards))return [];
+    return d.cards.map(c=>({name:c.name||c.id,set:c.set||'',image:c.image||'',id:c.id,kind:'card',prov:'op-tcg.com'}));
+  }catch(e){return [];}
+}
+async function opSets(q){
+  try{
+    const d=await catalogFetch('https://www.op-tcg.com/api/v2/sets?name='+encodeURIComponent(q));
+    if(!d||!Array.isArray(d.sets))return [];
+    return d.sets.map(s=>({name:s.name||s.id,set:s.name||'',image:s.logo||'',id:s.id,kind:'set',prov:'op-tcg.com'}));
+  }catch(e){return [];}
+}
 const CATALOG={
   pok:{name:'Pokémon · TCGdex',multiLang:true,card:tcgdexCards,set:tcgdexSets},
   mtg:{name:'Magic · Scryfall',multiLang:true,card:scryfallCards,set:scryfallSets},
   ygo:{name:'Yu-Gi-Oh! · YGOPRODeck',multiLang:false,card:ygoCards},
-  lor:{name:'Lorcana · Lorcast',multiLang:false,card:lorcastCards,set:lorcastSets}
+  lor:{name:'Lorcana · Lorcast',multiLang:false,card:lorcastCards,set:lorcastSets},
+  op:{name:'One Piece TCG · op-tcg.com',multiLang:false,card:opCards,set:opSets},
+  fot:{name:'Fotbollskort',multiLang:false,manual:true,card:async()=>[]},
+  spt:{name:'Sportkort',multiLang:false,manual:true,card:async()=>[]},
+  fnk:{name:'Funko Pop',multiLang:false,manual:true,card:async()=>[]}
 };
 
 let catalogTimer=null, catalogResults=[], catalogReq=0;
@@ -2811,11 +3044,45 @@ function initCatalog(){
   document.addEventListener('click',catalogOutsideClose);
 }
 function catalogOutsideClose(e){const w=$('#taResults');if(w&&!e.target.closest('.ta-wrap'))closeCatalogResults();}
-function currentProvider(){const c=$('#taCat');return c?CATALOG[c.value]:null;}
+function extraFieldsFor(cat,extra){
+  /* Returnerar extra fält-HTML beroende på kategori */
+  const x=extra||{};
+  if(cat==='fot'||cat==='spt'){
+    return '<div class="form-grid" style="margin-top:4px"><div class="fld"><label>Spelare</label><input name="extra_player" value="'+esc(x.player||'')+'" placeholder="Namn"></div>'
+      +'<div class="fld"><label>Sport</label><input name="extra_sport" value="'+esc(x.sport||'')+'" placeholder="Fotboll, basket…"></div>'
+      +'<div class="fld"><label>År</label><input name="extra_year" type="number" min="1950" max="2099" value="'+esc(x.year||'')+'" placeholder="2024"></div>'
+      +'<div class="fld"><label>Lag / klubb</label><input name="extra_team" value="'+esc(x.team||'')+'" placeholder="t.ex. Barcelona"></div>'
+      +'<div class="fld"><label>Serial / print run</label><input name="extra_serial" value="'+esc(x.serial||'')+'" placeholder="t.ex. 42/99"></div>'
+      +'<div class="fld"><label>Tillverkare</label><input name="extra_maker" value="'+esc(x.maker||'')+'" placeholder="Panini, Topps…"></div>'
+      +'</div>';
+  }
+  if(cat==='fnk'){
+    return '<div class="form-grid" style="margin-top:4px"><div class="fld"><label>Kollektion / linje</label><input name="extra_funkoline" value="'+esc(x.funkoline||'')+'" placeholder="Pop! Movies, Icons…"></div>'
+      +'<div class="fld"><label>Figurnummer (#)</label><input name="extra_funkono" value="'+esc(x.funkono||'')+'" placeholder="t.ex. 1254"></div>'
+      +'<div class="fld"><label>Exklusivitet</label><input name="extra_exclusive" value="'+esc(x.exclusive||'')+'" placeholder="Hot Topic, BoxLunch…"></div>'
+      +'<div class="fld" style="display:flex;align-items:center;gap:8px"><label style="margin:0"><input type="checkbox" name="extra_vaulted"'+(x.vaulted?' checked':'')+'> Vaultad</label></div>'
+      +'</div>';
+  }
+  return '';
+}
+function updateExtraFields(cat){
+  const box=$('#extraFields');if(!box)return;
+  const section=$('#extraSection');
+  const title=$('#extraTitle');
+  const html=extraFieldsFor(cat);
+  if(section)section.style.display=html?'block':'none';
+  if(title)title.textContent='Extrafält — '+(cat==='fnk'?'Funko Pop':'Sportkort');
+  box.innerHTML=html;
+  updateCatalogHint();
+}
 function updateCatalogHint(){
   const h=$('#taHint'),lang=$('#taLang');if(!h)return;
   const p=currentProvider();
-  if(p){h.innerHTML=ic('spark')+'Sökning aktiv: <b style="color:var(--text-dim)">'+esc(p.name)+'</b>'+(p.multiLang?' · flerspråkig':'');
+  if(p){
+    if(p.manual)
+      h.innerHTML=ic('alert')+'Ingen automatisk katalog för <b style="color:var(--text-dim)">'+esc(p.name.split(' · ')[0])+'</b> — fyll i namn manuellt. Se extrafält nedan.';
+    else
+      h.innerHTML=ic('spark')+'Sökning aktiv: <b style="color:var(--text-dim)">'+esc(p.name)+'</b>'+(p.multiLang?' · flerspråkig':'');
     if(lang)lang.parentElement.style.opacity=p.multiLang?'1':'.5';
   }else{h.innerHTML=ic('alert')+'Ingen katalog för denna kategori än — fyll i namn manuellt.';}
 }
@@ -2860,9 +3127,52 @@ async function pickCatalog(i){
   f.name.value=r.name;
   if(setName)f.set.value=setName;
   if(r.full||r.image)f.image.value=r.full||r.image;
-  if(r.kind==='set'&&f.type&&f.type.value==='Enskilt kort')f.type.value='Booster Box / Display';
+
+  if(r.kind==='set'){
+    // Auto-byt typ till Booster Box om det är ett kort valt
+    if(f.type&&f.type.value==='Enskilt kort')f.type.value='Booster Box / Display';
+    onTypeChange(f.type.value);
+    // Visa produktförslag för detta set
+    showSealedProductSuggestions(r.name,r.full||r.image,f);
+  }else{
+    closeCatalogResults();
+  }
+  toast('Hämtat från '+(CATALOG[f.cat.value]||currentProvider()||{name:'katalog'}).name.split(' · ')[0],'ok');
+}
+let _sealedCtx=null;
+function showSealedProductSuggestions(setName,setImage,form){
+  /* Visar produktförslag för valt set i autocomplete-rutan */
+  const box=$('#taResults');if(!box)return;
+  _sealedCtx={setName:setName,image:setImage};
+  const suggestions=[
+    {type:'Elite Trainer Box',label:'ETB',color:'#f0c040'},
+    {type:'Booster Box / Display',label:'Booster Box',color:'#d4783a'},
+    {type:'Booster Pack',label:'Booster Pack',color:'#2fb070'},
+    {type:'Starter / Theme Deck',label:'Starter Deck',color:'#3d8bdd'},
+    {type:'Tin / Blister',label:'Tin / Blister',color:'#b25fe0'},
+    {type:'Special / Premium Collection',label:'Special Collection',color:'#e25fa0'},
+    {type:'Sealed Case',label:'Sealed Case',color:'#777'},
+    {type:'Komplett set',label:'Komplett set',color:'#f5c451'}
+  ];
+  _sealedCtx.suggestions=suggestions;
+  let html='<div class="ta-msg" style="border-bottom:1px solid var(--border-soft);padding-bottom:8px;margin-bottom:8px"><b>'+esc(setName)+'</b> — välj produkttyp:</div>';
+  html+=suggestions.map((s,i)=>'<div class="ta-item" onmousedown="event.preventDefault()" onclick="pickSealedProduct('+i+')">'
+    +'<div class="ta-ph" style="background:'+s.color+'20;color:'+s.color+'">'+ic('box')+'</div>'
+    +'<div style="flex:1"><div class="ta-name">'+esc(setName)+' — '+s.label+'</div>'
+    +'<div class="ta-sub">'+s.type+'</div></div>'
+    +'<span class="ta-badge set">'+s.label+'</span></div>').join('');
+  box.innerHTML=html;box.classList.add('open');
+}
+function pickSealedProduct(i){
+  const f=$('#itemFormEl');if(!f||!_sealedCtx)return;
+  const s=_sealedCtx.suggestions[i];if(!s)return;
+  f.name.value=_sealedCtx.setName+' — '+s.label;
+  f.set.value=_sealedCtx.setName;
+  if(_sealedCtx.image&&!f.image.value)f.image.value=_sealedCtx.image;
+  if(f.type)f.type.value=s.type;
+  onTypeChange(s.type);
   closeCatalogResults();
-  toast('Hämtat från '+(CATALOG[r.cat]||currentProvider()||{name:'katalog'}).name.split(' · ')[0],'ok');
+  toast('Produkt vald — fyll i pris och antal','ok');
 }
 </script>
 </body>
