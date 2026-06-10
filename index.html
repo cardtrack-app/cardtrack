@@ -523,7 +523,7 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function daysAgo(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10);}
 
 /* ---------- Constants ---------- */
-const CURRENCIES=['SEK','EUR','USD','GBP','JPY'];
+const CURRENCIES=['SEK','EUR','USD','GBP','JPY','DKK','NOK','CZK'];
 const CURRENCY_SYMBOL={SEK:'kr',EUR:'€',USD:'$',GBP:'£',JPY:'¥'};
 const SEALED_TYPES=new Set(['Elite Trainer Box','Booster Box / Display','Booster Pack','Starter / Theme Deck','Tin / Blister','Special / Premium Collection','Sealed Case','Komplett set','Gift Set']);
 function isSealedType(t){return SEALED_TYPES.has(t);}
@@ -555,7 +555,7 @@ function defaultSettings(){
   return {
     baseCurrency:'SEK',
     theme:'dark',
-    rates:{SEK:1,EUR:11.40,USD:10.60,GBP:13.40,JPY:0.069}, // SEK per 1 unit
+    rates:{SEK:1,EUR:11.40,USD:10.60,GBP:13.40,JPY:0.069,DKK:1.53,NOK:0.95,CZK:0.45}, // SEK per 1 unit (auto-uppdateras dagligen)
     ratesUpdated:null,
     apiKey:'',
     aiModel:'claude-sonnet-4-20250514',
@@ -622,86 +622,56 @@ function seedData(){
     {id:'fnk',name:'Funko Pop / Samlarobjekt',color:'#e25fa0'}
   ];
   const sites=[
-    {id:'s_cm',name:'Cardmarket',url:'https://www.cardmarket.com',currency:'EUR',country:'DE',region:'EU',defaultShipping:4.99,freeShippingThreshold:0,color:'#1f6fb2',icon:'CM',rating:5,notes:'Bäst för singlar i EU. Trustee-skydd.',discountCodes:[],memberBenefits:'Cardmarket-skydd vid köp'},
-    {id:'s_tcg',name:'TCGplayer',url:'https://www.tcgplayer.com',currency:'USD',country:'US',region:'NON_EU',defaultShipping:18,freeShippingThreshold:0,color:'#f08a24',icon:'TP',rating:4,notes:'Stort utbud USA. OBS: tull + moms tillkommer.',discountCodes:[],memberBenefits:''},
-    {id:'s_tra',name:'Tradera',url:'https://www.tradera.com',currency:'SEK',country:'SE',region:'EU',defaultShipping:59,freeShippingThreshold:0,color:'#2fb070',icon:'TR',rating:3,notes:'Svensk auktion. Varierande skick.',discountCodes:[],memberBenefits:''},
-    {id:'s_kd',name:'Kortdraken',url:'https://kortdraken.se',currency:'SEK',country:'SE',region:'EU',defaultShipping:49,freeShippingThreshold:699,color:'#c0452f',icon:'KD',rating:4,notes:'Svensk butik, snabb frakt, fri frakt över 699 kr.',discountCodes:['SOMMAR10'],memberBenefits:'Stamkundspoäng'},
-    {id:'s_pc',name:'PriceCharting',url:'https://www.pricecharting.com',currency:'USD',country:'US',region:'NON_EU',defaultShipping:0,freeShippingThreshold:0,color:'#7a51c0',icon:'PC',rating:4,notes:'Referensindex för marknadspriser (gradat).',discountCodes:[],memberBenefits:''}
+    /* ---- Sverige ---- */
+    {id:'s_pt',name:'PokeTalk',url:'https://www.poketalk.se',currency:'SEK',country:'SE',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#f0c040',icon:'PT',rating:0,notes:'Svensk Pokémonbutik — singles (EN/JP), boosters och graderade kort.',discountCodes:[],memberBenefits:''},
+    {id:'s_cc',name:'Coolcard',url:'https://www.coolcard.se',currency:'SEK',country:'SE',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#3d8bdd',icon:'CC',rating:0,notes:'Svensk butik med Pokémon och andra samlarkort.',discountCodes:[],memberBenefits:''},
+    {id:'s_ts',name:'TCGstore',url:'https://tcgstore.se',currency:'SEK',country:'SE',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#b25fe0',icon:'TS',rating:0,notes:'Svensk butik — Pokémon, Magic, Yu-Gi-Oh!, One Piece, Lorcana.',discountCodes:[],memberBenefits:''},
+    {id:'s_sp',name:'Speltrollet',url:'https://speltrollet.se',currency:'SEK',country:'SE',region:'EU',defaultShipping:0,freeShippingThreshold:1500,color:'#c0452f',icon:'SP',rating:0,notes:'Svensk butik — Pokémon & Lorcana. Fri frakt över 1500 kr enligt deras webbplats.',discountCodes:[],memberBenefits:''},
+    {id:'s_as',name:'Alphaspel',url:'https://alphaspel.se',currency:'SEK',country:'SE',region:'EU',defaultShipping:0,freeShippingThreshold:1000,color:'#2fb070',icon:'AS',rating:0,notes:'Stockholm — ett av Skandinaviens bredaste spelutbud, säljer även Lorcana-LÖSKORT. Fraktfritt inom Sverige från 1000 kr.',discountCodes:[],memberBenefits:''},
+    {id:'s_skb',name:'Spelkortsbutiken',url:'https://www.spelkortsbutiken.se',currency:'SEK',country:'SE',region:'EU',defaultShipping:22,freeShippingThreshold:999,color:'#e0524e',icon:'SK',rating:0,notes:'Svensk butik — Lorcana m.m. Frakt från 22 kr, fri frakt över 999 kr.',discountCodes:[],memberBenefits:''},
+    {id:'s_se',name:'Spelexperten',url:'https://www.spelexperten.com',currency:'SEK',country:'SE',region:'EU',defaultShipping:0,freeShippingThreshold:600,color:'#f08a24',icon:'SE',rating:0,notes:'Svensk spelbutik — Lorcana och brädspel. Fri frakt vid 600 kr.',discountCodes:[],memberBenefits:''},
+    {id:'s_fn',name:'FantasiaNorth',url:'https://fantasianorth.com',currency:'SEK',country:'SE',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#6f6ae6',icon:'FN',rating:0,notes:'Svensk butik med Lorcana TCG och spelkvällar.',discountCodes:[],memberBenefits:''},
+    {id:'s_tra',name:'Tradera',url:'https://www.tradera.com',currency:'SEK',country:'SE',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#2fb070',icon:'TR',rating:0,notes:'Svensk auktions- och köp nu-sajt. Frakt varierar per säljare.',discountCodes:[],memberBenefits:''},
+    {id:'s_pm',name:'Pocketmonsters',url:'https://pocketmonsters.se',currency:'SEK',country:'DK',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#e25fa0',icon:'PM',rating:0,notes:'Pokémonbutik med danskt lager, leverans 2–3 arbetsdagar till Sverige.',discountCodes:[],memberBenefits:''},
+    {id:'s_wh',name:'Webhallen',url:'https://www.webhallen.com',currency:'SEK',country:'SE',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#ffd23c',icon:'WH',rating:0,notes:'Svensk elektronik-/gamingkedja med stort sortiment förseglat Pokémon TCG.',discountCodes:[],memberBenefits:''},
+    {id:'s_kz',name:'Kelz0r',url:'https://www.kelz0r.dk',currency:'DKK',country:'DK',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#48b0d6',icon:'KZ',rating:0,notes:'Klassisk dansk TCG-butik — singles och förseglat för Pokémon, MTG m.m. Brevfrakt från ca 25 DKK.',discountCodes:[],memberBenefits:''},
+    /* ---- EU ---- */
+    {id:'s_cm',name:'Cardmarket',url:'https://www.cardmarket.com',currency:'EUR',country:'DE',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#1f6fb2',icon:'CM',rating:0,notes:'Europas största marknadsplats för TCG-singlar (Pokémon, MTG, Lorcana, One Piece m.m.). Frakt varierar per säljare.',discountCodes:[],memberBenefits:''},
+    {id:'s_ct',name:'CardTrader',url:'https://www.cardtrader.com',currency:'EUR',country:'IT',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#5b9dff',icon:'CT',rating:0,notes:'EU-marknadsplats. "Zero"-tjänsten samlar kort från flera säljare till EN fraktkostnad.',discountCodes:[],memberBenefits:''},
+    {id:'s_lc',name:'LegendaryCards',url:'https://www.legendarycards.eu',currency:'EUR',country:'NL',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#d4783a',icon:'LC',rating:0,notes:'EU-butik specialiserad på förseglat Pokémon, även äldre set.',discountCodes:[],memberBenefits:''},
+    {id:'s_gtg',name:'Gate to the Games',url:'https://www.gate-to-the-games.de',currency:'EUR',country:'DE',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#3aa14a',icon:'GG',rating:0,notes:'Etablerad tysk TCG-butik — singles, förseglat och förbeställningar (Pokémon, YGO m.m.).',discountCodes:[],memberBenefits:''},
+    {id:'s_ccs',name:'Cardcosmos',url:'https://cardcosmos.de',currency:'EUR',country:'DE',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#5b6ee1',icon:'CO',rating:0,notes:'Tysk butik — förseglat och singles med fokus på säker paketering.',discountCodes:[],memberBenefits:''},
+    {id:'s_lot',name:'LottiCards',url:'https://www.lotticards.de',currency:'EUR',country:'DE',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#e0524e',icon:'LO',rating:0,notes:'Tysk Pokémonbutik — DE/EN/JP-kort, ofta under UVP enligt deras webbplats.',discountCodes:[],memberBenefits:''},
+    {id:'s_tst',name:'TCG Stars',url:'https://www.tcgstars.nl',currency:'EUR',country:'NL',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#f5a623',icon:'ST',rating:0,notes:'Utrecht — alla stora TCG inkl. Lorcana, One Piece, Star Wars. Boostergaranti (ovägd/ofiltrerad). Levererar NL+BE.',discountCodes:[],memberBenefits:''},
+    {id:'s_tco',name:'TCG Company',url:'https://tcgcompany.nl',currency:'EUR',country:'NL',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#2fb070',icon:'TY',rating:0,notes:'Holländsk butik — EN+JP Pokémon-singles, sealed, PSA-slabs. Köper även in samlingar (70% av värdet).',discountCodes:[],memberBenefits:''},
+    {id:'s_bes',name:'Bescards',url:'https://bescards.com',currency:'EUR',country:'NL',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#d6486f',icon:'BC',rating:0,notes:'Rotterdam-butik — Pokémon, YGO, MTG m.m. Försäkrade leveranser, skickar inom 2 vardagar.',discountCodes:[],memberBenefits:''},
+    {id:'s_tcc',name:'TCG-Cards',url:'https://www.tcg-cards.nl',currency:'EUR',country:'NL',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#8a63d2',icon:'TN',rating:0,notes:'Holländsk TCG-specialist — singles och förseglat.',discountCodes:[],memberBenefits:''},
+    {id:'s_pkn',name:'Pokenatics',url:'https://www.pokenatics.nl',currency:'EUR',country:'NL',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#f0c040',icon:'PN',rating:0,notes:'Holländsk Pokémonbutik — boxar, ETB, singles. Hjälper även med PSA-gradning.',discountCodes:[],memberBenefits:''},
+    {id:'s_bt',name:'Blazing Tail',url:'https://www.blazingtail.fr',currency:'EUR',country:'FR',region:'EU',defaultShipping:0,freeShippingThreshold:200,color:'#e8590c',icon:'BT',rating:0,notes:'Fransk Pokémonbutik — singles, sealed, graderat (PSA/CGC). Fri frakt från 200 €, skickar inom 24 h.',discountCodes:[],memberBenefits:''},
+    {id:'s_fuj',name:'Fuji Store',url:'https://fuji-store.fr',currency:'EUR',country:'FR',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#c2255c',icon:'FS',rating:0,notes:'Fransk butik — Pokémon FR/JP, One Piece, Lorcana. Singles och förseglat, även gradningstjänst.',discountCodes:[],memberBenefits:''},
+    {id:'s_sb',name:'ShadowBall',url:'https://www.shadowball.cz',currency:'EUR',country:'CZ',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#6741d9',icon:'SB',rating:0,notes:'Tjeckisk butik (engelsk sajt) — enormt singles-utbud från Base Set/WotC till moderna set, PSA/CGC-graderat, även japanskt.',discountCodes:[],memberBenefits:''},
+    {id:'s_cr',name:'Černý Rytíř',url:'https://www.cernyrytir.cz',currency:'CZK',country:'CZ',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#343a40',icon:'CR',rating:0,notes:'Prag-klassiker med ofta mycket bra priser på förseglat. Har även Rip&Ship-tjänst.',discountCodes:[],memberBenefits:''},
+    {id:'s_cst',name:'Cardstore.cz',url:'https://www.cardstore.cz',currency:'CZK',country:'CZ',region:'EU',defaultShipping:0,freeShippingThreshold:2500,color:'#0ca678',icon:'CZ',rating:0,notes:'Tjeckisk Pokémon-eshop — fri frakt från 2500 CZK, skickar inom 24 h.',discountCodes:[],memberBenefits:''},
+    {id:'s_naj',name:'Najada Games',url:'https://www.najada.games',currency:'CZK',country:'CZ',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#1971c2',icon:'NJ',rating:0,notes:'Klassisk Prag-butik för TCG — Pokémon, MTG m.m. med spelhall.',discountCodes:[],memberBenefits:''},
+    {id:'s_fed',name:'Federicstore',url:'https://www.federicstore.it',currency:'EUR',country:'IT',region:'EU',defaultShipping:6.9,freeShippingThreshold:89,color:'#e8590c',icon:'FE',rating:0,notes:'Italiensk butik — kort på IT/EN/JP/KR, singles och förseglat. Frakt 6,90 €, fri över 89 €.',discountCodes:[],memberBenefits:''},
+    {id:'s_ph',name:'PianetaHobby',url:'https://www.pianetahobby.it',currency:'EUR',country:'IT',region:'EU',defaultShipping:0,freeShippingThreshold:250,color:'#2b8a3e',icon:'PH',rating:0,notes:'Italiensk butik med enormt katalog — singles (även graderade), JP-boxar, äldre set. Fri frakt först över 250 €.',discountCodes:[],memberBenefits:''},
+    {id:'s_fan',name:'Fantasiastore',url:'https://www.fantasiastore.it',currency:'EUR',country:'IT',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#9c36b5',icon:'FA',rating:0,notes:'Italiensk e-handel — 10 000+ produkter, förseglat och singles för flera TCG.',discountCodes:[],memberBenefits:''},
+    {id:'s_pkm',name:'Pokemillon',url:'https://www.pokemillon.com',currency:'EUR',country:'ES',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#f59f00',icon:'PO',rating:0,notes:'Spansk storbutik — 8 000+ produkter på ES/EN/JP/KR, graderade kort och CGC-gradningstjänst.',discountCodes:[],memberBenefits:''},
+    {id:'s_mmc',name:'Metamorph Center',url:'https://metamorphcenter.com',currency:'EUR',country:'ES',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#0c8599',icon:'MC',rating:0,notes:'Spansk butik — Pokémon + One Piece, förseglat på JP/KR/CN/EN/ES, importerar direkt från Asien.',discountCodes:[],memberBenefits:''},
+    {id:'s_czn',name:'CardZone',url:'https://cardzone.es',currency:'EUR',country:'ES',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#e03131',icon:'CN',rating:0,notes:'Spansk butik — ETB, blisters, tins på ES+JP, mystery boxes.',discountCodes:[],memberBenefits:''},
+    {id:'s_tk',name:'TCG-kauppa',url:'https://www.tcgkauppa.fi',currency:'EUR',country:'FI',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#1864ab',icon:'TK',rating:0,notes:'Finsk butik — singles i NM/Mint sleevade direkt ur boosters, även Digimon/YGO.',discountCodes:[],memberBenefits:''},
+    {id:'s_vpd',name:'VPD Pelikauppa',url:'https://www.vpd.fi',currency:'EUR',country:'FI',region:'EU',defaultShipping:0.95,freeShippingThreshold:0,color:'#5c940d',icon:'VP',rating:0,notes:'Stor finsk spelbutik — förseglat Pokémon, frakt från 0,95 €.',discountCodes:[],memberBenefits:''},
+    {id:'s_pkp',name:'Puolenkuun Pelit',url:'https://www.puolenkuunpelit.com',currency:'EUR',country:'FI',region:'EU',defaultShipping:0,freeShippingThreshold:0,color:'#862e9c',icon:'PP',rating:0,notes:'Klassisk finsk spelbutik — brett TCG-sortiment.',discountCodes:[],memberBenefits:''},
+    /* ---- USA (moms + ev. tull tillkommer) ---- */
+    {id:'s_tcg',name:'TCGplayer',url:'https://www.tcgplayer.com',currency:'USD',country:'US',region:'NON_EU',defaultShipping:0,freeShippingThreshold:0,color:'#f08a24',icon:'TP',rating:0,notes:'Stor US-marknadsplats — Pokémon, MTG, Lorcana, One Piece m.m. OBS: moms + ev. tull vid import till EU.',discountCodes:[],memberBenefits:''},
+    {id:'s_ck',name:'Card Kingdom',url:'https://www.cardkingdom.com',currency:'USD',country:'US',region:'NON_EU',defaultShipping:0,freeShippingThreshold:0,color:'#7a51c0',icon:'CK',rating:0,notes:'Välrenommerad US-butik, främst Magic-singles.',discountCodes:[],memberBenefits:''},
+    {id:'s_csi',name:'CoolStuffInc',url:'https://www.coolstuffinc.com',currency:'USD',country:'US',region:'NON_EU',defaultShipping:0,freeShippingThreshold:0,color:'#43d39e',icon:'CS',rating:0,notes:'US-butik — singles och förseglat för flera TCG.',discountCodes:[],memberBenefits:''},
+    {id:'s_tnt',name:'Troll and Toad',url:'https://www.trollandtoad.com',currency:'USD',country:'US',region:'NON_EU',defaultShipping:0,freeShippingThreshold:0,color:'#b8902f',icon:'TT',rating:0,notes:'US-butik sedan 30+ år — Pokémon, Yu-Gi-Oh!, MTG, Lorcana, One Piece.',discountCodes:[],memberBenefits:''},
+    {id:'s_pc',name:'PriceCharting',url:'https://www.pricecharting.com',currency:'USD',country:'US',region:'NON_EU',defaultShipping:0,freeShippingThreshold:0,color:'#7a51c0',icon:'PC',rating:0,notes:'Prisreferens-index för bl.a. graderade kort — inte en butik.',discountCodes:[],memberBenefits:''}
   ];
-  const P=(siteId,price,shipping,currency,url)=>({siteId,price,shipping:shipping==null?null:shipping,currency,url,updated:daysAgo(Math.floor(Math.random()*9))});
-  const items=[
-    {id:uid(),name:'Scarlet & Violet 151 — Elite Trainer Box',cat:'pok',set:'SV: 151',type:'Elite Trainer Box',condition:'Sealed / Förseglad',cert:'',qty:3,image:'',
-      notes:'Topp-ETB, kraftig efterfrågan på Zapdos-art.',tags:['investering','sealed'],
-      buyPrice:449,buyCurrency:'SEK',buyShipping:49,buyDate:daysAgo(120),seller:'Kortdraken',
-      prices:[P('s_kd',529,49,'SEK','https://kortdraken.se/151-etb'),P('s_cm',46.9,4.99,'EUR','https://www.cardmarket.com/151-etb'),P('s_tra',575,59,'SEK','https://www.tradera.com/151-etb')]},
-    {id:uid(),name:'Charizard ex 199 — Special Illustration Rare',cat:'pok',set:'SV: Obsidian Flames',type:'Enskilt kort',condition:'PSA 10',cert:'PSA 84412209',qty:1,image:'',
-      notes:'Graderad gem mint. Långsiktig hold.',tags:['chase','graded'],
-      buyPrice:1850,buyCurrency:'SEK',buyShipping:0,buyDate:daysAgo(210),seller:'Tradera',
-      prices:[P('s_cm',210,4.99,'EUR','https://www.cardmarket.com/charizard-ex'),P('s_pc',239,0,'USD','https://www.pricecharting.com/charizard-ex'),P('s_tcg',229,18,'USD','https://www.tcgplayer.com/charizard-ex')]},
-    {id:uid(),name:'Pokémon 151 — Booster Box (Japansk)',cat:'pok',set:'SV2a (JP)',type:'Booster Box / Display',condition:'Sealed / Förseglad',cert:'',qty:1,image:'',
-      notes:'Japan exclusive. 20 paket.',tags:['japan','sealed'],
-      buyPrice:799,buyCurrency:'SEK',buyShipping:79,buyDate:daysAgo(95),seller:'Cardmarket',
-      prices:[P('s_cm',74.5,9.99,'EUR','https://www.cardmarket.com/151-jp-box'),P('s_kd',null,49,'SEK',''),P('s_tcg',92,22,'USD','https://www.tcgplayer.com/151-jp-box')]},
-    {id:uid(),name:'Lorcana — The First Chapter Booster Box',cat:'lor',set:'The First Chapter',type:'Booster Box / Display',condition:'Sealed / Förseglad',cert:'',qty:1,image:'',
-      notes:'Första vågen, utgått ur tryck — stigande.',tags:['oop','investering'],
-      buyPrice:1200,buyCurrency:'SEK',buyShipping:49,buyDate:daysAgo(160),seller:'Kortdraken',
-      prices:[P('s_cm',139,4.99,'EUR','https://www.cardmarket.com/lorcana-tfc-box'),P('s_tra',1690,59,'SEK','https://www.tradera.com/lorcana-tfc')]},
-    {id:uid(),name:'Elsa — Snow Queen (Enchanted)',cat:'lor',set:'The First Chapter',type:'Enskilt kort',condition:'Near Mint',cert:'',qty:2,image:'',
-      notes:'Enchanted rare, eftertraktad.',tags:['enchanted'],
-      buyPrice:62,buyCurrency:'EUR',buyShipping:4.99,buyDate:daysAgo(140),seller:'Cardmarket',
-      prices:[P('s_cm',71,4.99,'EUR','https://www.cardmarket.com/elsa-snow-queen'),P('s_tcg',83,18,'USD','https://www.tcgplayer.com/elsa-snow-queen')]},
-    {id:uid(),name:'Panini Prizm Premier League — Hobby Box',cat:'fot',set:'Prizm EPL 2023-24',type:'Booster Box / Display',condition:'Sealed / Förseglad',cert:'',qty:1,image:'',
-      notes:'Hobby, 12 paket. Haaland/Saka rookies.',tags:['hobby','epl'],
-      buyPrice:159,buyCurrency:'EUR',buyShipping:9.99,buyDate:daysAgo(75),seller:'Cardmarket',
-      prices:[P('s_cm',172,9.99,'EUR','https://www.cardmarket.com/prizm-epl-box'),P('s_kd',1990,49,'SEK','https://kortdraken.se/prizm-epl')]},
-    {id:uid(),name:'Erling Haaland — Topps Chrome UCL Refractor',cat:'fot',set:'Topps Chrome UCL 2022-23',type:'Enskilt kort',condition:'PSA 9',cert:'PSA 77120044',qty:1,image:'',
-      notes:'Refractor /, stigande efter säsong.',tags:['graded','chrome'],
-      buyPrice:890,buyCurrency:'SEK',buyShipping:0,buyDate:daysAgo(180),seller:'Tradera',
-      prices:[P('s_tra',1150,59,'SEK','https://www.tradera.com/haaland-ucl'),P('s_tcg',119,18,'USD','https://www.tcgplayer.com/haaland-ucl')]},
-    {id:uid(),name:'Commander Masters — Collector Booster Box',cat:'mtg',set:'Commander Masters',type:'Booster Box / Display',condition:'Sealed / Förseglad',cert:'',qty:1,image:'',
-      notes:'Collector booster, 4 paket.',tags:['collector','sealed'],
-      buyPrice:289,buyCurrency:'EUR',buyShipping:4.99,buyDate:daysAgo(60),seller:'Cardmarket',
-      prices:[P('s_cm',265,4.99,'EUR','https://www.cardmarket.com/cmm-collector-box'),P('s_tcg',289,18,'USD','https://www.tcgplayer.com/cmm-collector-box')]}
-  ];
-  const watch=[
-    {id:uid(),name:'Prismatic Evolutions — Elite Trainer Box',cat:'pok',type:'Elite Trainer Box',targetPrice:399,targetCurrency:'SEK',notes:'Vänta på restock — peakar inför jul.',preorder:false,
-      prices:[P('s_kd',379,49,'SEK','https://kortdraken.se/prismatic-etb'),P('s_cm',39.9,4.99,'EUR','https://www.cardmarket.com/prismatic-etb')]},
-    {id:uid(),name:'Lorcana — Azurite Sea Booster Box',cat:'lor',type:'Booster Box / Display',targetPrice:90,targetCurrency:'EUR',notes:'Förbeställning öppen.',preorder:true,
-      prices:[P('s_cm',104,4.99,'EUR','https://www.cardmarket.com/azurite-sea-box')]},
-    {id:uid(),name:'Kylian Mbappé — Prizm World Cup PSA 10',cat:'fot',type:'Enskilt kort',targetPrice:1500,targetCurrency:'SEK',notes:'Bevaka auktioner.',preorder:false,
-      prices:[P('s_tra',1850,59,'SEK','https://www.tradera.com/mbappe-prizm')]}
-  ];
-  const st={categories:cats,sites:sites,items:items,watch:watch,priceHistory:[],snapshots:[],settings:defaultSettings(),savedViews:[]};
-  // Build synthetic price history + portfolio snapshots so charts have data
-  buildSeedHistory(st);
-  buildSeedSnapshots(st);
+  /* Inga demo-objekt — alla användare börjar med en TOM samling. */
+  const st={categories:cats,sites:sites,items:[],watch:[],priceHistory:[],snapshots:[],settings:defaultSettings(),savedViews:[]};
   return st;
-}
-
-function buildSeedHistory(st){
-  // generate ~16 weeks of price points for each item's best site
-  st.items.forEach(it=>{
-    it.prices.filter(p=>p.price!=null).forEach((p,idx)=>{
-      if(idx>1)return; // keep first 2 sites per item for history
-      const weeks=16, end=p.price;
-      let v=end*(0.78+Math.random()*0.12); // start lower, trend up
-      for(let w=weeks;w>=0;w--){
-        v=v*(1+(Math.random()-0.42)*0.05);
-        if(w===0)v=end;
-        st.priceHistory.push({id:uid(),itemRef:it.id,name:it.name,siteId:p.siteId,
-          price:Math.round(v*100)/100,currency:p.currency,date:daysAgo(w*7),auto:false});
-      }
-    });
-  });
-}
-function buildSeedSnapshots(st){
-  const cur=portfolioMarketValueRaw(st);
-  for(let m=11;m>=0;m--){
-    const factor=0.72+ (11-m)/11*0.28; // grow toward current
-    const noise=1+(Math.random()-0.5)*0.05;
-    st.snapshots.push({date:daysAgo(m*30),value:Math.round(cur*factor*noise)});
-  }
-  st.snapshots[st.snapshots.length-1].value=Math.round(cur);
 }
 
 /* ============================================================
@@ -1946,7 +1916,7 @@ RENDERERS.history=function(){
    PAGE: SAJTER
    ============================================================ */
 RENDERERS.sites=function(){
-  let html=sectionHead('Sajter','<button class="btn primary sm" onclick="siteForm()">'+ic('plus')+'Ny sajt</button>');
+  let html=sectionHead('Sajter','<button class="btn ghost sm" onclick="addDefaultSites()" title="Lägg till verifierade butiker (SE/EU/US) som saknas">'+ic('download')+'Lägg till standardsajter</button><button class="btn primary sm" onclick="siteForm()">'+ic('plus')+'Ny sajt</button>');
   html+='<div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>Sajt</th><th>Land</th><th>Valuta</th><th class="right">Frakt</th><th class="right">Fri frakt över</th><th>Betyg</th><th class="right">Åtgärder</th></tr></thead><tbody>';
   state.sites.forEach(s=>{
     const used=state.items.concat(state.watch).reduce((n,o)=>n+((o.prices||[]).some(p=>p.siteId===s.id&&p.price!=null)?1:0),0);
@@ -1985,7 +1955,7 @@ function siteForm(id){
     +'<div class="fld"><label>Standardfrakt</label><input name="defaultShipping" type="number" step="0.01" value="'+(d.defaultShipping!=null?d.defaultShipping:0)+'"></div>'
     +'<div class="fld"><label>Fri frakt över (0 = aldrig)</label><input name="freeShippingThreshold" type="number" step="0.01" value="'+(d.freeShippingThreshold||0)+'"></div>'
     +'<div class="fld"><label>Färg</label><input name="color" type="color" value="'+esc(d.color||'#1f6fb2')+'" style="height:40px;padding:4px"></div>'
-    +'<div class="fld full"><label>Rabattkoder (komma)</label><input name="discountCodes" value="'+esc((d.discountCodes||[]).join(', '))+'" placeholder="SOMMAR10, FRAKTFRITT"></div>'
+    +'<div class="fld full"><label>Rabattkoder (komma)</label><input name="discountCodes" value="'+esc((d.discountCodes||[]).join(', '))+'" placeholder="dina egna koder, kommaseparerade"></div>'
     +'<div class="fld full"><label>Medlemsförmåner</label><input name="memberBenefits" value="'+esc(d.memberBenefits||'')+'" placeholder="t.ex. stamkundspoäng"></div>'
     +'<div class="fld full"><label>Anteckning / tillförlitlighet</label><textarea name="notes">'+esc(d.notes||'')+'</textarea></div>'
     +'</div></form></div>'
@@ -2142,6 +2112,7 @@ RENDERERS.settings=function(){
     +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" onclick="exportData()">'+ic('download')+'Exportera JSON</button>'
     +'<button class="btn ghost sm" onclick="importPrompt()">'+ic('upload')+'Importera JSON</button>'
     +'<button class="btn ghost sm" onclick="toggleTheme()">'+ic(s.theme==='dark'?'sun':'moon')+'Växla tema</button>'
+    +'<button class="btn danger sm" onclick="clearCollection()">'+ic('trash')+'Töm samlingen</button>'
     +'<button class="btn danger sm" onclick="resetAll()">'+ic('trash')+'Återställ allt</button></div></div>';
   $('#page-settings').innerHTML=html;
   if(loggedIn())setTimeout(mfaRenderBox,0);
@@ -2174,11 +2145,30 @@ async function autoUpdateRates(){
   await fetchRates(true);
 }
 function resetAll(){
-  if(!confirm('Återställ ALLT till exempeldata? All din egen data raderas permanent.'))return;
+  if(!confirm('Återställ ALLT? Samlingen töms och sajter/kategorier återställs till standard (verifierade äkta sajter). Detta synkas till molnet.'))return;
   if(!confirm('Är du helt säker? Detta går inte att ångra.'))return;
   appLock={enabled:false,key:null,salt:null,iter:210000};
   localStorage.removeItem(STORAGE_KEY);
-  state=seedData();save();applyTheme();renderNav();updateBadges();navigate('dashboard');updateTicker();toast('Återställt till exempeldata','ok');
+  state=freshState();save();applyTheme();renderNav();updateBadges();navigate('dashboard');updateTicker();toast('Återställt — tom samling med standardsajter','ok');
+}
+function clearCollection(){
+  if(!confirm('Töm samlingen? Alla objekt, bevakningar, prishistorik och grafer raderas — men dina sajter, kategorier och inställningar behålls. Synkas till molnet.'))return;
+  if(!confirm('Är du helt säker? Detta går inte att ångra.'))return;
+  state.items=[];state.watch=[];state.priceHistory=[];state.snapshots=[];
+  save();rerenderCurrent();updateBadges();updateTicker();
+  toast('Samlingen är nu tom','warn');
+}
+function addDefaultSites(){
+  /* Lägger till alla standardsajter som saknas — rör INTE befintliga sajter eller samlingen */
+  const defs=seedData().sites;
+  const have=new Set((state.sites||[]).map(s=>(s.url||'').toLowerCase().replace(/\/$/,'')));
+  let added=0;
+  defs.forEach(d=>{
+    const u=(d.url||'').toLowerCase().replace(/\/$/,'');
+    if(!have.has(u)){state.sites.push(d);added++;}
+  });
+  if(added){save();rerenderCurrent();updateBadges();toast(added+' standardsajter tillagda','ok');}
+  else toast('Alla standardsajter finns redan','ok');
 }
 
 /* ---------- Export / Import ---------- */
@@ -2287,6 +2277,8 @@ async function init(){
   // säkerställ struktur för äldre/importerad data
   state.priceHistory=state.priceHistory||[];state.snapshots=state.snapshots||[];state.watch=state.watch||[];state.savedViews=state.savedViews||[];
   state.settings=Object.assign(defaultSettings(),state.settings||{});
+  // merge:a in nya valutor (DKK/NOK) i äldre sparade kurs-objekt
+  state.settings.rates=Object.assign({},defaultSettings().rates,state.settings.rates||{});
   if(!state.settings.supabaseUrl)state.settings.supabaseUrl=EMBED_SUPABASE_URL;
   if(!state.settings.supabaseKey)state.settings.supabaseKey=EMBED_SUPABASE_KEY;
   saveAppConfig();
@@ -2740,9 +2732,10 @@ async function autoFetchPrices(obj){
 }
 
 function bestSiteForCurrency(currency){
-  /* Matchar en konfigurerad sajt mot valuta — föredrar URL-matchning */
+  /* Matchar en konfigurerad sajt mot valuta — föredrar URL-matchning.
+     Cardmarket-priser → Cardmarket-sajten, TCGplayer-priser → TCGplayer. */
   const cur=(currency||'').toUpperCase();
-  const patterns={EUR:['cardmarket','kortdraken'],USD:['tcgplayer','tcg'],SEK:['tradera','kortdraken','pricecharting']};
+  const patterns={EUR:['cardmarket'],USD:['tcgplayer'],SEK:['poketalk','coolcard','tcgstore','speltrollet','tradera']};
   const sites=state.sites||[];
   for(const p of (patterns[cur]||[])){
     const s=sites.find(x=>(x.url||'').toLowerCase().includes(p)&&(x.currency||'').toUpperCase()===cur);
