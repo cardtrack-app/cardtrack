@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.1 (2026-06-11) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.3 (2026-06-11) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -431,6 +431,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-3);border:1p
       <div class="topbar-actions">
         <div class="ticker" id="ticker"></div>
         <button class="btn icon ghost" onclick="toggleTheme()" title="Växla tema" id="themeBtn">${ic('moon')}</button>
+        <button class="btn ghost" onclick="logout()" title="Logga ut" id="logoutBtn" style="display:none;position:fixed;right:18px;bottom:18px;z-index:60;box-shadow:var(--shadow-soft)"></button>
         <button class="btn primary" onclick="quickAdd()">${ic('plus')}<span class="nowrap">Lägg till</span></button>
       </div>
     </header>
@@ -546,7 +547,7 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.1';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION='1.6.3';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
 const APP_VERSION_DATE='2026-06-11';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
@@ -1979,6 +1980,9 @@ function saveSite(id){
 function deleteSite(id,fromForm){
   const s=siteById(id);if(!s)return;
   if(!confirm('Ta bort sajten "'+s.name+'"? Priser kopplade till den tas också bort.'))return;
+  // kom ihåg att användaren tagit bort denna — annars läggs standardsajter tillbaka vid nästa start
+  const u=(s.url||'').toLowerCase().replace(/\/$/,'');
+  if(u){state.settings.removedDefaultSites=state.settings.removedDefaultSites||[];if(!state.settings.removedDefaultSites.includes(u))state.settings.removedDefaultSites.push(u);}
   state.sites=state.sites.filter(x=>x.id!==id);
   state.items.concat(state.watch).forEach(o=>{o.prices=(o.prices||[]).filter(p=>p.siteId!==id);});
   state.priceHistory=state.priceHistory.filter(h=>h.siteId!==id);
@@ -2171,18 +2175,23 @@ async function pushNowWithReceipt(msg){
   try{await cloudPush();toast(msg+' — synkad till molnet','ok');}
   catch(e){toast(msg+' lokalt, MEN molnsynken misslyckades: '+e.message+' — tryck "Synka nu" under Inställningar','err');}
 }
-function addDefaultSites(){
-  /* Lägger till alla standardsajter som saknas — rör INTE befintliga sajter eller samlingen */
+function mergeDefaultSites(quiet){
+  /* Lägger till alla standardsajter som saknas — rör INTE befintliga sajter eller samlingen.
+     quiet=true (auto vid start): respekterar sajter användaren raderat och visar ingen toast. */
   const defs=seedData().sites;
+  if(!quiet)state.settings.removedDefaultSites=[];   // knappen = uttrycklig återställning, glöm raderingar
+  const removed=new Set(state.settings.removedDefaultSites||[]);
   const have=new Set((state.sites||[]).map(s=>(s.url||'').toLowerCase().replace(/\/$/,'')));
   let added=0;
   defs.forEach(d=>{
     const u=(d.url||'').toLowerCase().replace(/\/$/,'');
-    if(!have.has(u)){state.sites.push(d);added++;}
+    if(!have.has(u)&&!removed.has(u)){state.sites.push(d);added++;}
   });
-  if(added){save();rerenderCurrent();updateBadges();toast(added+' standardsajter tillagda','ok');}
-  else toast('Alla standardsajter finns redan','ok');
+  if(added){save();if(!quiet){rerenderCurrent();updateBadges();}}
+  if(!quiet)toast(added?added+' standardsajter tillagda':'Alla standardsajter finns redan','ok');
+  return added;
 }
+function addDefaultSites(){mergeDefaultSites(false);}
 
 /* ---------- Export / Import ---------- */
 function exportData(){
@@ -2298,6 +2307,7 @@ async function init(){
   if(!state.settings.supabaseUrl)state.settings.supabaseUrl=EMBED_SUPABASE_URL;
   if(!state.settings.supabaseKey)state.settings.supabaseKey=EMBED_SUPABASE_KEY;
   saveAppConfig();
+  mergeDefaultSites(true);   // standardsajterna ska alltid finnas — lägg till saknade tyst
 
   applyTheme();
   renderNav();
@@ -2343,6 +2353,9 @@ function updateGate(){
   if(open)renderGate(g.dataset.mode||'login');
   g.classList.toggle('open',open);
   document.body.style.overflow=open?'hidden':'';
+  // Logga ut-knappen i topbaren — syns bara när man är inloggad
+  const lb=$('#logoutBtn');
+  if(lb){const on=loggedIn();lb.style.display=on?'':'none';if(on&&!lb.innerHTML)lb.innerHTML=ic('external')+'<span class="nowrap">Logga ut</span>';}
 }
 function setGateMode(m){const g=$('#authGate');if(g)g.dataset.mode=m;renderGate(m);}
 function renderGate(mode){
