@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.4 (2026-06-11) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.5 (2026-06-11) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -169,6 +169,7 @@ tbody tr:last-child td{border-bottom:none}
 .cond.graded{background:var(--primary-glow);color:var(--primary)}
 .row-actions{display:flex;gap:4px;justify-content:flex-end;opacity:0;transition:.15s}
 tbody tr:hover .row-actions{opacity:1}
+@media (hover:none){.row-actions{opacity:1}} /* mobil/touch: hover finns inte — visa alltid radknappar */
 .iconbtn{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--text-dim);transition:.14s}
 .iconbtn:hover{background:var(--surface-3);color:var(--text)}
 .iconbtn.del:hover{color:var(--loss);background:var(--loss-dim)}
@@ -181,6 +182,7 @@ tbody tr:hover .row-actions{opacity:1}
 .search input{width:100%;padding:9px 12px 9px 36px;border-radius:var(--radius-sm);border:1px solid var(--border);
   background:var(--surface);color:var(--text);transition:.15s}
 .search input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow)}
+.search input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
 .search .ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-faint)}
 select.fltr,input.fltr{padding:8px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);transition:.15s}
 select.fltr:focus,input.fltr:focus{outline:none;border-color:var(--primary)}
@@ -515,7 +517,7 @@ const ICONS={
   expand:'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7',
   shield:'M12 3l7 3v6c0 4-3 7-7 8-4-1-7-4-7-8V6z'
 };
-function ic(n){return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="'+(ICONS[n]||'')+'"/></svg>';}
+function ic(n){return '<svg class="ic" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="'+(ICONS[n]||'')+'"/></svg>';}
 
 /* ---------- Utilities ---------- */
 const $=s=>document.querySelector(s);
@@ -530,6 +532,7 @@ function daysAgo(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOSt
 const CURRENCIES=['SEK','EUR','USD','GBP','JPY','DKK','NOK','CZK'];
 const CURRENCY_SYMBOL={SEK:'kr',EUR:'€',USD:'$',GBP:'£',JPY:'¥'};
 const SEALED_TYPES=new Set(['Elite Trainer Box','Booster Box / Display','Booster Pack','Starter / Theme Deck','Tin / Blister','Special / Premium Collection','Sealed Case','Komplett set','Gift Set']);
+const PRODUCT_TYPES=['Enskilt kort','Elite Trainer Box','Booster Box / Display','Booster Pack','Starter / Theme Deck','Tin / Blister','Special / Premium Collection','Sealed Case','Komplett set','Gift Set','Lot / Bundle','Tillbehör','Övrigt'];
 function isSealedType(t){return SEALED_TYPES.has(t);}
 function onTypeChange(type){
   /* Auto-sätt condition till Förseglad när sealed produkttyp väljs */
@@ -548,7 +551,7 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.4';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION='1.6.5';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
 const APP_VERSION_DATE='2026-06-11';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
@@ -1073,7 +1076,7 @@ RENDERERS.collection=function(){
   const items=filteredItems();
   let html=''
   +'<div class="toolbar">'
-  +'<div class="search">'+ic('search')+'<input id="collSearch" autocomplete="off" placeholder="Sök namn, set, tagg…" value="'+esc(collFilter.q)+'"></div>'
+  +'<div class="search">'+ic('search')+'<input type="search" id="collSearch" autocomplete="off" placeholder="Sök namn, set, tagg…" value="'+esc(collFilter.q)+'"></div>'
   +'<select class="fltr" id="collCond"><option value="all">Alla skick</option>'+CONDITIONS.map(c=>'<option '+(collFilter.cond===c?'selected':'')+'>'+c+'</option>').join('')+'</select>'
   +'<select class="fltr" id="collSite"><option value="all">Alla sajter</option>'+state.sites.map(s=>'<option value="'+s.id+'" '+(collFilter.site===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>'
   +'<select class="fltr" id="collSort">'
@@ -1482,10 +1485,10 @@ function deleteItem(id,fromForm){
 function quickAdd(){
   openModal('<div class="modal-head"><h3>Vad vill du lägga till?</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
     +'<div class="modal-body"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
-    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();itemForm()"><div style="color:var(--primary);margin-bottom:8px">'+ic('layers')+'</div><b>Objekt i samling</b><div class="dim" style="font-size:12px;margin-top:4px">Kort, ETB, box du äger</div></button>'
-    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();watchForm()"><div style="color:var(--primary);margin-bottom:8px">'+ic('eye')+'</div><b>Bevakning</b><div class="dim" style="font-size:12px;margin-top:4px">Något du vill köpa</div></button>'
-    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();siteForm()"><div style="color:var(--primary);margin-bottom:8px">'+ic('store')+'</div><b>Sajt</b><div class="dim" style="font-size:12px;margin-top:4px">Ny kortbutik att bevaka</div></button>'
-    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();catForm()"><div style="color:var(--primary);margin-bottom:8px">'+ic('tag')+'</div><b>Kategori</b><div class="dim" style="font-size:12px;margin-top:4px">Ny TCG-typ</div></button>'
+    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();itemForm()"><div style="color:var(--primary);margin-bottom:8px;font-size:34px">'+ic('layers')+'</div><b>Objekt i samling</b><div class="dim" style="font-size:12px;margin-top:4px">Kort, ETB, box du äger</div></button>'
+    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();watchForm()"><div style="color:var(--primary);margin-bottom:8px;font-size:34px">'+ic('eye')+'</div><b>Bevakning</b><div class="dim" style="font-size:12px;margin-top:4px">Något du vill köpa</div></button>'
+    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();siteForm()"><div style="color:var(--primary);margin-bottom:8px;font-size:34px">'+ic('store')+'</div><b>Sajt</b><div class="dim" style="font-size:12px;margin-top:4px">Ny kortbutik att bevaka</div></button>'
+    +'<button class="card hover" style="text-align:left;cursor:pointer" onclick="closeModal();catForm()"><div style="color:var(--primary);margin-bottom:8px;font-size:34px">'+ic('tag')+'</div><b>Kategori</b><div class="dim" style="font-size:12px;margin-top:4px">Ny TCG-typ</div></button>'
     +'</div></div>');
 }
 
@@ -1495,7 +1498,7 @@ function quickAdd(){
 RENDERERS.watchlist=function(){
   const hits=state.watch.filter(w=>{const bb=bestBuyEntry(w);return bb&&bb.totalBase<=toBase(w.targetPrice,w.targetCurrency);}).length;
   let html='<div class="toolbar">'
-    +'<div class="search">'+ic('search')+'<input id="watchSearch" autocomplete="off" placeholder="Sök bevakningar…"></div>'
+    +'<div class="search">'+ic('search')+'<input type="search" id="watchSearch" autocomplete="off" placeholder="Sök bevakningar…"></div>'
     +'<button class="btn ghost sm" onclick="updateAllPrices()" title="Hämta aktuella priser för alla MTG och Pokémon-objekt">'+ic('refresh')+'Uppdatera priser</button>'
     +'<button class="btn ghost sm" onclick="requestNotifPermission()" title="Aktivera webbläsarnotiser när prisål nås">'+ic('bell')+'Notiser</button>'
     +'<button class="btn primary" onclick="watchForm()">'+ic('plus')+'Ny bevakning</button></div>';
