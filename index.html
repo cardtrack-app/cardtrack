@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.0 (2026-06-10) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.1 (2026-06-11) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -546,8 +546,8 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.0';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
-const APP_VERSION_DATE='2026-06-10';
+const APP_VERSION='1.6.1';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION_DATE='2026-06-11';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
 let state=null;
@@ -2148,19 +2148,28 @@ async function autoUpdateRates(){
   if(state.settings.ratesUpdated===todayISO())return;
   await fetchRates(true);
 }
-function resetAll(){
+async function resetAll(){
   if(!confirm('Återställ ALLT? Samlingen töms och sajter/kategorier återställs till standard (verifierade äkta sajter). Detta synkas till molnet.'))return;
   if(!confirm('Är du helt säker? Detta går inte att ångra.'))return;
   appLock={enabled:false,key:null,salt:null,iter:210000};
   localStorage.removeItem(STORAGE_KEY);
-  state=freshState();save();applyTheme();renderNav();updateBadges();navigate('dashboard');updateTicker();toast('Återställt — tom samling med standardsajter','ok');
+  state=freshState();save();applyTheme();renderNav();updateBadges();navigate('dashboard');updateTicker();
+  await pushNowWithReceipt('Återställt — tom samling med standardsajter');
 }
-function clearCollection(){
+async function clearCollection(){
   if(!confirm('Töm samlingen? Alla objekt, bevakningar, prishistorik och grafer raderas — men dina sajter, kategorier och inställningar behålls. Synkas till molnet.'))return;
   if(!confirm('Är du helt säker? Detta går inte att ångra.'))return;
   state.items=[];state.watch=[];state.priceHistory=[];state.snapshots=[];
   save();rerenderCurrent();updateBadges();updateTicker();
-  toast('Samlingen är nu tom','warn');
+  await pushNowWithReceipt('Samlingen är nu tom');
+}
+/* Synka direkt (utan 1,8 s-debounce) så raderingar inte överlever i molnet om
+   sidan stängs/laddas om direkt efter — det var så raderad data "kom tillbaka". */
+async function pushNowWithReceipt(msg){
+  if(!loggedIn()){toast(msg+' (lokalt — ej inloggad, inget moln att synka)','warn');return;}
+  if(_cloudPushTimer){clearTimeout(_cloudPushTimer);_cloudPushTimer=null;}
+  try{await cloudPush();toast(msg+' — synkad till molnet','ok');}
+  catch(e){toast(msg+' lokalt, MEN molnsynken misslyckades: '+e.message+' — tryck "Synka nu" under Inställningar','err');}
 }
 function addDefaultSites(){
   /* Lägger till alla standardsajter som saknas — rör INTE befintliga sajter eller samlingen */
