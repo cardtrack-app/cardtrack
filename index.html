@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.3 (2026-06-11) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.4 (2026-06-11) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -291,6 +291,7 @@ select.mini:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px 
 /* ============================ MISC ============================ */
 .empty{text-align:center;padding:54px 20px;color:var(--text-dim)}
 .empty .big{font-size:40px;margin-bottom:10px;opacity:.5}
+.empty .big svg{width:56px;height:56px}
 .empty h3{font-family:var(--display);font-size:17px;color:var(--text);margin-bottom:6px}
 .empty p{font-size:13px;max-width:340px;margin:0 auto 16px}
 .bar{height:7px;border-radius:6px;background:var(--surface-3);overflow:hidden}
@@ -386,6 +387,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-3);border:1p
 </head>
 <body>
 <div class="scrim" id="scrim" onclick="toggleSidebar(false)"></div>
+<button class="btn ghost" onclick="logout()" title="Logga ut" id="logoutBtn" style="display:none;position:fixed;right:18px;bottom:18px;z-index:60;box-shadow:var(--shadow-soft)"></button>
 <div class="app">
   <!-- ===================== SIDEBAR ===================== -->
   <aside class="sidebar" id="sidebar">
@@ -431,7 +433,6 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-3);border:1p
       <div class="topbar-actions">
         <div class="ticker" id="ticker"></div>
         <button class="btn icon ghost" onclick="toggleTheme()" title="Växla tema" id="themeBtn">${ic('moon')}</button>
-        <button class="btn ghost" onclick="logout()" title="Logga ut" id="logoutBtn" style="display:none;position:fixed;right:18px;bottom:18px;z-index:60;box-shadow:var(--shadow-soft)"></button>
         <button class="btn primary" onclick="quickAdd()">${ic('plus')}<span class="nowrap">Lägg till</span></button>
       </div>
     </header>
@@ -547,7 +548,7 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.3';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION='1.6.4';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
 const APP_VERSION_DATE='2026-06-11';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
@@ -808,6 +809,7 @@ function renderNav(){
     return '<a data-page="'+n.id+'" class="'+(n.id===currentPage?'active':'')+'">'+ic(n.ic)+'<span>'+n.label+'</span>'+badge+'</a>';
   }).join('');
   $$('#nav a').forEach(a=>a.onclick=()=>navigate(a.dataset.page));
+  updateBadges();   // nav ritas om bl.a. av checkAdmin() efter inloggning — badgarna får aldrig bli kvar på statiska "0"
 }
 function updateBadges(){
   const set=(id,v)=>{const e=$('#nav-'+id);if(e)e.textContent=v;};
@@ -1071,7 +1073,7 @@ RENDERERS.collection=function(){
   const items=filteredItems();
   let html=''
   +'<div class="toolbar">'
-  +'<div class="search">'+ic('search')+'<input id="collSearch" placeholder="Sök namn, set, tagg…" value="'+esc(collFilter.q)+'"></div>'
+  +'<div class="search">'+ic('search')+'<input id="collSearch" autocomplete="off" placeholder="Sök namn, set, tagg…" value="'+esc(collFilter.q)+'"></div>'
   +'<select class="fltr" id="collCond"><option value="all">Alla skick</option>'+CONDITIONS.map(c=>'<option '+(collFilter.cond===c?'selected':'')+'>'+c+'</option>').join('')+'</select>'
   +'<select class="fltr" id="collSite"><option value="all">Alla sajter</option>'+state.sites.map(s=>'<option value="'+s.id+'" '+(collFilter.site===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>'
   +'<select class="fltr" id="collSort">'
@@ -1493,7 +1495,7 @@ function quickAdd(){
 RENDERERS.watchlist=function(){
   const hits=state.watch.filter(w=>{const bb=bestBuyEntry(w);return bb&&bb.totalBase<=toBase(w.targetPrice,w.targetCurrency);}).length;
   let html='<div class="toolbar">'
-    +'<div class="search">'+ic('search')+'<input id="watchSearch" placeholder="Sök bevakningar…"></div>'
+    +'<div class="search">'+ic('search')+'<input id="watchSearch" autocomplete="off" placeholder="Sök bevakningar…"></div>'
     +'<button class="btn ghost sm" onclick="updateAllPrices()" title="Hämta aktuella priser för alla MTG och Pokémon-objekt">'+ic('refresh')+'Uppdatera priser</button>'
     +'<button class="btn ghost sm" onclick="requestNotifPermission()" title="Aktivera webbläsarnotiser när prisål nås">'+ic('bell')+'Notiser</button>'
     +'<button class="btn primary" onclick="watchForm()">'+ic('plus')+'Ny bevakning</button></div>';
