@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- CardTrack v1.6.0 (2026-06-10) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -415,6 +416,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-3);border:1p
     <div class="sidebar-foot">
       <span class="dot" id="serverDot"></span>
       <span id="serverStatus">Scraping-server: offline</span>
+      <span id="appVersion" style="margin-left:auto"></span>
     </div>
   </aside>
 
@@ -544,6 +546,8 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
+const APP_VERSION='1.6.0';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION_DATE='2026-06-10';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
 let state=null;
@@ -2027,7 +2031,7 @@ function deleteCat(id,fromForm){
    ============================================================ */
 RENDERERS.settings=function(){
   const s=state.settings;
-  let html=sectionHead('Inställningar','');
+  let html=sectionHead('Inställningar','<span class="dim" style="font-size:11.5px">CardTrack v'+APP_VERSION+' &middot; '+APP_VERSION_DATE+'</span>');
 
   // Basvaluta + växelkurser
   html+='<div class="card"><b style="font-family:var(--display)">Valuta & växelkurser</b>'
@@ -2260,6 +2264,9 @@ function showLockScreen(meta){
    INIT
    ============================================================ */
 async function init(){
+  // version — syns i sidofoten och konsolen (jämför mot live-sidans HTML-kommentar överst)
+  const av=$('#appVersion');if(av)av.textContent='v'+APP_VERSION;
+  console.log('CardTrack v'+APP_VERSION+' ('+APP_VERSION_DATE+')');
   // injicera ikoner i statiska topbar-knappar
   const mt=$('.mtoggle');if(mt)mt.innerHTML=ic('menu');
   const addBtn=document.querySelector('.topbar-actions .primary');if(addBtn)addBtn.innerHTML=ic('plus')+'<span class="nowrap">Lägg till</span>';
@@ -2293,7 +2300,7 @@ async function init(){
   // koppla basvaluta-väljaren när settings renderas (delegerat)
   document.addEventListener('change',e=>{if(e.target&&e.target.id==='setBase')onBaseChange();});
   // återställ Supabase-session i bakgrunden, uppdatera vyn när klar
-  initSupabase().then(()=>{if(loggedIn()){rerenderCurrent();checkAdmin();checkSharedViewParam();}});
+  initSupabase().then(()=>{if(loggedIn()){rerenderCurrent();checkAdmin();}checkSharedViewParam();});
   autoUpdateRates().then(checkPriceAlerts); // hämtar kurser och kontrollerar prisnotiser
 }
 window.addEventListener('DOMContentLoaded',init);
@@ -2315,6 +2322,7 @@ function supabaseReady(){return !!(state.settings.supabaseUrl&&state.settings.su
 
 /* ---- Inloggnings-spärr: inget visas förrän man är inloggad ---- */
 function gateOpen(){
+  if(new URLSearchParams(location.search).get('view'))return false; // publik delad vy — kräver ingen inloggning
   if(!supabaseReady())return false;                 // ej konfigurerat → spärra inte (annars utelåst)
   if(loggedIn())return false;                       // inloggad → app
   if(!_authChecked && session && session.email)return false; // optimistiskt under uppstart
@@ -2381,8 +2389,9 @@ async function cloudPush(){
   const blob=localStorage.getItem(STORAGE_KEY);if(!blob)throw new Error('Inget data');
   const {error}=await sb.from('collections').upsert({user_id:uid2,data:blob,updated_at:new Date().toISOString()});
   if(error)throw new Error(error.message);
-  // Synka public-status separat (kräver SQL: ALTER TABLE collections ADD COLUMN public boolean)
-  try{await sb.from('collections').update({public:!!(state.settings&&state.settings.publicCollection)}).eq('user_id',uid2);}catch(e){}
+  // Synka public-status separat (kräver Steg 3-SQL: public-kolumn + RLS-policy)
+  const up=await sb.from('collections').update({public:!!(state.settings&&state.settings.publicCollection)}).eq('user_id',uid2);
+  if(up.error)console.warn('Kunde inte synka publik-status (har Steg 3-SQL körts?):',up.error.message);
   session.lastSync=new Date().toISOString();saveSession();
 }
 async function cloudPull(){
@@ -2529,7 +2538,7 @@ async function forgotPassword(){
   if(!email.trim())email=prompt('Ange din e-post så skickar vi en återställningslänk:')||'';
   email=email.trim().toLowerCase();if(!email)return;
   try{
-    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.href.split('#')[0]});
+    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:shareBaseUrl()});
     if(error)throw new Error(error.message);
     closeModal();toast('Återställningsmejl skickat till '+email,'ok');
   }catch(e){toast('Kunde inte skicka: '+e.message,'err');}
@@ -2705,8 +2714,15 @@ async function autoFetchPrices(obj){
 
   if(cat==='mtg'){
     try{
-      const set=obj.set?'&set='+encodeURIComponent(obj.set.slice(0,3).toLowerCase()):'';
-      const r=await catalogFetch('https://api.scryfall.com/cards/named?fuzzy='+encodeURIComponent(name)+set);
+      // Scryfall vill ha set-KODEN (t.ex. "dmu"), inte set-namnet. Prova med
+      // användarens set-värde (funkar om de skrivit koden) och fall tillbaka utan.
+      let r=null;
+      if(obj.set){
+        const setQ='&set='+encodeURIComponent(String(obj.set).trim().toLowerCase());
+        r=await catalogFetch('https://api.scryfall.com/cards/named?fuzzy='+encodeURIComponent(name)+setQ);
+        if(!r||r.object==='error')r=null;
+      }
+      if(!r)r=await catalogFetch('https://api.scryfall.com/cards/named?fuzzy='+encodeURIComponent(name));
       if(!r||r.object==='error')return null;
       const p=r.prices||{},pu=r.purchase_uris||{},res=[];
       if(p.eur!=null)res.push({currency:'EUR',price:parseFloat(p.eur),url:pu.cardmarket||'',label:'Cardmarket via Scryfall'});
@@ -2804,6 +2820,8 @@ async function updateAllPrices(){
     done++;
     // visa progress var 5:e objekt
     if(done%5===0&&done<all.length)toast('Hämtar '+done+'/'+all.length+'…','ok');
+    // paus mellan anropen — Scryfall begär 50–100 ms och pokemontcg.io rate-limitar hårt utan API-nyckel
+    if(done<all.length)await new Promise(rs=>setTimeout(rs,150));
   }
   save();rerenderCurrent();
   toast(changed?changed+' priser uppdaterade automatiskt ('+done+' objekt genomgångna)':'Alla priser kontrollerade — inga ändringar','ok');
@@ -2874,7 +2892,7 @@ async function togglePublicCollection(isPublic){
   rerenderCurrent();
   toast(isPublic?'Samlingen är nu publik — dela länken nedan':'Samlingen är nu privat','ok');
 }
-function shareBaseUrl(){return (location.origin+location.pathname).replace(/\/$/,'')+'/';}
+function shareBaseUrl(){return (location.origin+location.pathname.replace(/\/index\.html?$/i,'')).replace(/\/$/,'')+'/';}
 function shareLink(){const uid=session&&session.userId;return uid?shareBaseUrl()+'?view='+uid:'';}
 function copyShareLink(){const l=shareLink();if(!l){toast('Kunde inte hämta din ID — logga ut och in igen','err');return;}navigator.clipboard.writeText(l).then(()=>toast('Länk kopierad!','ok')).catch(()=>toast('Kunde inte kopiera — '+l,'warn'));}
 
@@ -2890,6 +2908,11 @@ async function loadSharedState(userId){
     return;
   }
   try{_sharedState=JSON.parse(blob);}catch(e){el.innerHTML='<div class="card"><div class="empty"><h3>Kunde inte läsa samlingen</h3></div></div>';return;}
+  if(_sharedState&&_sharedState.__enc){
+    _sharedState=null;
+    el.innerHTML='<div class="card"><div class="empty"><div class="big">'+ic('shield')+'</div><h3>Samlingen är krypterad</h3><p>Ägaren har applås aktiverat — innehållet kan inte visas publikt.</p></div></div>';
+    return;
+  }
   _sharedUserId=userId;
   RENDERERS.shared();
 }
@@ -2901,14 +2924,23 @@ RENDERERS.shared=function(){
   }
   const items=_sharedState.items||[];
   const cats=_sharedState.categories||[];
+  const sSites=_sharedState.sites||[];
+  const sSet=_sharedState.settings||{};
+  const sRates=Object.assign({SEK:1,EUR:11.40,USD:10.60,GBP:13.40,JPY:0.069,DKK:1.53,NOK:0.95,CZK:0.45},sSet.rates||{});
+  const sBase=sSet.baseCurrency||'SEK';
+  const sConv=(v,from)=>{if(v==null||isNaN(v))return null;from=from||sBase;if(from===sBase)return v;const rf=sRates[from],rt=sRates[sBase];return (rf&&rt)?v*rf/rt:null;};
+  const sFmt=v=>{const sym=(typeof CURRENCY_SYMBOL!=='undefined'&&CURRENCY_SYMBOL[sBase])||sBase;const dec=sBase==='JPY'?0:(Math.abs(v)>=1000?0:2);const n=Number(v||0).toLocaleString('sv-SE',{minimumFractionDigits:dec,maximumFractionDigits:dec});return sBase==='SEK'?n+'\u00A0'+sym:sym+'\u00A0'+n;};
+  const bestPrice=it=>{let best=null;(it.prices||[]).forEach(p=>{if(p.price==null)return;const tot=sConv((p.price||0)+(p.shipping||0),p.currency);if(tot==null)return;if(!best||tot<best.tot)best={tot:tot,siteId:p.siteId};});return best;};
   $('#pageTitle').textContent='Delad samling';
   $('#pageSub').textContent='Skrivskyddad vy — '+items.length+' objekt';
   const catName=id=>{const c=cats.find(x=>x.id===id);return c?c.name:id||'';};
+  const siteName=id=>{const s=sSites.find(x=>x.id===id);return s?s.name:'';};
   let html='<div class="note-banner" style="margin-bottom:16px">'+ic('eye')+'<div>Du ser en annans publika samling. Skrivskyddad — inga ändringar sparas.</div></div>';
   if(!items.length){html+='<div class="card"><div class="empty"><div class="big">'+ic('layers')+'</div><h3>Samlingen är tom</h3></div></div>';el.innerHTML=html;return;}
-  html+='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th></th><th>Namn</th><th>Set</th><th>Kategori</th><th>Skick</th><th style="text-align:right">Antal</th></tr></thead><tbody>';
+  html+='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th></th><th>Namn</th><th>Set</th><th>Kategori</th><th>Skick</th><th style="text-align:right">Antal</th><th style="text-align:right">Bästa pris</th></tr></thead><tbody>';
   items.forEach(it=>{
     const img=it.image||'';
+    const bp=bestPrice(it);
     html+='<tr>'
       +'<td style="width:48px">'+(img?'<img src="'+esc(img)+'" style="width:40px;height:auto;border-radius:4px;vertical-align:middle" alt="">':'')+'</td>'
       +'<td><div class="nm">'+esc(it.name||'')+'</div></td>'
@@ -2916,6 +2948,7 @@ RENDERERS.shared=function(){
       +'<td><div class="dim">'+esc(catName(it.cat))+'</div></td>'
       +'<td><div class="dim">'+esc(it.condition||'—')+'</div></td>'
       +'<td style="text-align:right"><div class="num">'+((it.qty||1)>1?'×'+(it.qty||1):'1')+'</div></td>'
+      +'<td style="text-align:right">'+(bp?'<div class="num">'+sFmt(bp.tot)+'</div>'+(siteName(bp.siteId)?'<div class="faint" style="font-size:10.5px">@ '+esc(siteName(bp.siteId))+'</div>':''):'<div class="faint">—</div>')+'</td>'
       +'</tr>';
   });
   html+='</tbody></table></div></div>';
@@ -2924,7 +2957,7 @@ RENDERERS.shared=function(){
 function checkSharedViewParam(){
   const params=new URLSearchParams(location.search);
   const viewId=params.get('view');
-  if(viewId&&loggedIn())loadSharedState(viewId);
+  if(viewId)loadSharedState(viewId);   // publik vy — fungerar även utloggad (RLS-policyn måste tillåta anon)
 }
 
 // Ladda session-cache så snart skriptet är inläst
