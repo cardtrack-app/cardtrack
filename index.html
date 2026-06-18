@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.7 (2026-06-18) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.8 (2026-06-18) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -179,11 +179,14 @@ tbody tr:hover .row-actions{opacity:1}
 /* ============================ FILTERS / TOOLBAR ============================ */
 .toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:16px}
 .search{flex:1;min-width:200px;position:relative}
-.search input{width:100%;padding:9px 12px 9px 36px;border-radius:var(--radius-sm);border:1px solid var(--border);
+.search input{width:100%;padding:9px 36px 9px 36px;border-radius:var(--radius-sm);border:1px solid var(--border);
   background:var(--surface);color:var(--text);transition:.15s}
 .search input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow)}
 .search input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
 .search .ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-faint)}
+.search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:var(--text-faint);cursor:pointer;padding:0;z-index:1}
+.search-clear:hover{color:var(--text);background:var(--border-soft)}
+.search .search-clear .ic{position:static;left:auto;transform:none;width:15px;height:15px;color:inherit}
 select.fltr,input.fltr{padding:8px 11px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);transition:.15s}
 select.fltr:focus,input.fltr:focus{outline:none;border-color:var(--primary)}
 .chip{padding:7px 13px;border-radius:30px;border:1px solid var(--border);background:var(--surface);font-size:12.5px;font-weight:600;color:var(--text-dim);transition:.15s;display:inline-flex;align-items:center;gap:7px}
@@ -551,7 +554,7 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.7';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION='1.6.8';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
 const APP_VERSION_DATE='2026-06-18';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
@@ -883,7 +886,7 @@ function openModal(html,wide){
   const ov=$('#overlay');
   ov.innerHTML='<div class="modal'+(wide?' wide':'')+'">'+html+'</div>';
   ov.classList.add('open');
-  ov.onclick=e=>{if(e.target===ov)closeModal();};
+  ov.onclick=null;   // klick utanför stänger INTE längre (skydda ifylld data) — stäng via ✕ / Avbryt / Spara / Esc
   document.body.style.overflow='hidden';
 }
 function closeModal(){$('#overlay').classList.remove('open');document.body.style.overflow='';if(_modalCloseTimer)clearTimeout(_modalCloseTimer);_modalCloseTimer=setTimeout(()=>{$('#overlay').innerHTML='';_modalCloseTimer=null;},220);}
@@ -1077,6 +1080,7 @@ function drawPortfolioChart(id){
    PAGE: COLLECTION (Min samling)
    ============================================================ */
 let collFilter={q:'',cat:'all',cond:'all',site:'all',sort:'value',view:'list'};
+let watchFilterQ='';
 function filteredItems(){
   let arr=state.items.slice();
   const q=collFilter.q.toLowerCase().trim();
@@ -1099,7 +1103,7 @@ RENDERERS.collection=function(){
   const items=filteredItems();
   let html=''
   +'<div class="toolbar">'
-  +'<div class="search">'+ic('search')+'<input type="search" id="collSearch" autocomplete="off" placeholder="Sök namn, set, tagg…" value="'+esc(collFilter.q)+'"></div>'
+  +'<div class="search">'+ic('search')+'<input type="search" id="collSearch" name="ct-q" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" readonly onfocus="this.removeAttribute(\'readonly\')" placeholder="Sök namn, set, tagg…" value="'+esc(collFilter.q)+'">'+(collFilter.q?'<button type="button" class="search-clear" title="Rensa sökning" onclick="clearCollSearch()">'+ic('x')+'</button>':'')+'</div>'
   +'<select class="fltr" id="collCond"><option value="all">Alla skick</option>'+CONDITIONS.map(c=>'<option '+(collFilter.cond===c?'selected':'')+'>'+c+'</option>').join('')+'</select>'
   +'<select class="fltr" id="collSite"><option value="all">Alla sajter</option>'+state.sites.map(s=>'<option value="'+s.id+'" '+(collFilter.site===s.id?'selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>'
   +'<select class="fltr" id="collSort">'
@@ -1182,6 +1186,7 @@ RENDERERS.collection=function(){
   $('#collSort').onchange=e=>{collFilter.sort=e.target.value;RENDERERS.collection();};
 };
 function setCollCat(c){collFilter.cat=c;RENDERERS.collection();}
+function clearCollSearch(){collFilter.q='';RENDERERS.collection();var s=$('#collSearch');if(s){s.removeAttribute('readonly');s.focus();}}
 function setCollView(v){collFilter.view=v;save();RENDERERS.collection();}
 
 /* ============================================================
@@ -1521,7 +1526,7 @@ function quickAdd(){
 RENDERERS.watchlist=function(){
   const hits=state.watch.filter(w=>{const bb=bestBuyEntry(w);return bb&&bb.totalBase<=toBase(w.targetPrice,w.targetCurrency);}).length;
   let html='<div class="toolbar">'
-    +'<div class="search">'+ic('search')+'<input type="search" id="watchSearch" autocomplete="off" placeholder="Sök bevakningar…"></div>'
+    +'<div class="search">'+ic('search')+'<input type="search" id="watchSearch" name="ct-wq" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" readonly onfocus="this.removeAttribute(\'readonly\')" placeholder="Sök bevakningar…" value="'+esc(watchFilterQ||'')+'">'+(watchFilterQ?'<button type="button" class="search-clear" title="Rensa sökning" onclick="clearWatchSearch()">'+ic('x')+'</button>':'')+'</div>'
     +'<button class="btn ghost sm" onclick="updateAllPrices()" title="Hämta aktuella priser för alla MTG och Pokémon-objekt">'+ic('refresh')+'Uppdatera priser</button>'
     +'<button class="btn ghost sm" onclick="requestNotifPermission()" title="Aktivera webbläsarnotiser när prisål nås">'+ic('bell')+'Notiser</button>'
     +'<button class="btn primary" onclick="watchForm()">'+ic('plus')+'Ny bevakning</button></div>';
@@ -1534,7 +1539,7 @@ RENDERERS.watchlist=function(){
     html+='<div class="card"><div class="empty"><div class="big">'+ic('eye')+'</div><h3>Köplistan är tom</h3><p>Lägg till objekt du vill köpa med ett målpris. CardTrack markerar när priset nås och beräknar en köp-poäng.</p><button class="btn primary" onclick="watchForm()">'+ic('plus')+'Ny bevakning</button></div></div>';
   }else{
     html+='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th>Objekt</th><th>Kategori</th><th class="right">Målpris</th><th class="right">Bästa pris nu</th><th class="right">Diff</th><th>Köp-poäng</th><th>Status</th><th></th></tr></thead><tbody>';
-    const q=( $('#watchSearch')&&$('#watchSearch').value||'').toLowerCase();
+    const q=(watchFilterQ||'').toLowerCase();
     state.watch.filter(w=>!q||w.name.toLowerCase().includes(q)).forEach(w=>{
       const bb=bestBuyEntry(w);const tgt=toBase(w.targetPrice,w.targetCurrency);
       const score=buyScore(w);const site=bb?siteById(bb.entry.siteId):null;
@@ -1558,8 +1563,9 @@ RENDERERS.watchlist=function(){
     html+='</tbody></table></div></div>';
   }
   $('#page-watchlist').innerHTML=html;
-  const ws=$('#watchSearch');if(ws)ws.oninput=()=>RENDERERS.watchlist();
+  const ws=$('#watchSearch');if(ws)ws.oninput=e=>{watchFilterQ=e.target.value;RENDERERS.watchlist();var w=$('#watchSearch');if(w){w.removeAttribute('readonly');w.focus();var v=w.value;w.setSelectionRange(v.length,v.length);}};
 };
+function clearWatchSearch(){watchFilterQ='';RENDERERS.watchlist();var w=$('#watchSearch');if(w){w.removeAttribute('readonly');w.focus();}}
 function editWatch(id){watchForm(id);}
 function watchForm(id){
   const w=id?state.watch.find(x=>x.id===id):null;
@@ -3166,19 +3172,43 @@ function updateCatalogHint(){
     if(lang)lang.parentElement.style.opacity=p.multiLang?'1':'.5';
   }else{h.innerHTML=ic('alert')+'Ingen katalog för denna kategori än — fyll i namn manuellt.';}
 }
+/* Box-/förseglat-intention: nyckelord i sökningen ELLER en förseglad produkttyp vald i formuläret.
+   Då vill användaren lägga till en box (ETB/Booster Box osv.), inte ett enskilt kort. */
+var BOX_WORDS=['elite trainer box','booster bundle','booster box','booster pack','premium collection','collection box','sealed case','trainer box','booster','bundle','display','blister','tin','case','sealed','förseglad','etb','box'];
+function boxIntentFor(q){
+  var ql=(q||'').toLowerCase();
+  if(BOX_WORDS.some(function(w){return ql.indexOf(w)>=0;}))return true;
+  var f=$('#itemFormEl');
+  return !!(f&&f.type&&typeof isSealedType==='function'&&isSealedType(f.type.value));
+}
+function stripBoxWords(q){
+  var s=' '+(q||'')+' ';
+  BOX_WORDS.forEach(function(w){s=s.replace(new RegExp('\\b'+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','ig'),' ');});
+  s=s.replace(/\s+/g,' ').trim();
+  return s||q;
+}
 async function runCatalogSearch(q){
   const p=currentProvider();const box=$('#taResults');if(!p||!box)return;
   const lang=$('#taLang')?$('#taLang').value:'en';
   const reqId=++catalogReq;
   box.classList.add('open');box.innerHTML='<div class="ta-msg">'+ic('refresh')+' Söker…</div>';
   try{
+    const boxIntent=boxIntentFor(q);
+    const setQ=boxIntent?stripBoxWords(q):q;   // släng box-orden så set-namnet matchar (t.ex. "151 elite trainer box" → "151")
     const tasks=[];
-    if(p.set)tasks.push(p.set(q,p.multiLang?lang:'en').catch(()=>[]));
+    if(p.set)tasks.push(p.set(setQ,p.multiLang?lang:'en').catch(()=>[]));
     if(p.card)tasks.push(p.card(q,p.multiLang?lang:'en').catch(()=>[]));
     const parts=await Promise.all(tasks);
     if(reqId!==catalogReq)return; // en nyare sökning hann före
     let out=[];parts.forEach(pa=>out=out.concat(pa));
+    // vid box-intention: lyft set-träffar överst så boxar blir lätta att hitta
+    if(boxIntent)out.sort(function(a,b){return (a.kind==='set'?0:1)-(b.kind==='set'?0:1);});
     catalogResults=out.slice(0,28);
+    // box-intention + set-träff → visa boxväljaren (ETB/Booster Box…) för bästa set direkt
+    if(boxIntent){
+      const topSet=catalogResults.find(function(r){return r.kind==='set';});
+      if(topSet){showSealedProductSuggestions(topSet.name,topSet.full||topSet.image,$('#itemFormEl'));return;}
+    }
     renderCatalogResults();
   }catch(e){
     if(reqId!==catalogReq)return;
@@ -3190,7 +3220,7 @@ function renderCatalogResults(){
   if(!catalogResults.length){box.innerHTML='<div class="ta-msg">Inga träffar.</div>';return;}
   box.innerHTML=catalogResults.map((r,i)=>{
     const img=r.image?'<img src="'+esc(r.image)+'" alt="" loading="lazy" onerror="imgFallback(this,\'ta-ph\',\'box\')">':'<div class="ta-ph">'+ic(r.kind==='set'?'layers':'box')+'</div>';
-    const sub=r.kind==='set'?(r.sub||'Set / förseglat'):(r.set||'');
+    const sub=r.kind==='set'?(r.sub?r.sub+' · klicka för boxar':'Klicka för boxar (ETB, Booster Box…)'):(r.set||'');
     return '<div class="ta-item" onmousedown="event.preventDefault()" onclick="pickCatalog('+i+')">'+img
       +'<div style="flex:1;min-width:0"><div class="ta-name">'+esc(r.name)+'</div>'+(sub?'<div class="ta-sub">'+esc(sub)+'</div>':'')+'</div>'
       +'<span class="ta-badge'+(r.kind==='set'?' set':'')+'">'+(r.kind==='set'?'SET':'KORT')+'</span></div>';
