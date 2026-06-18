@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.6 (2026-06-11) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.7 (2026-06-18) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -551,8 +551,8 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.6';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
-const APP_VERSION_DATE='2026-06-11';
+const APP_VERSION='1.6.7';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION_DATE='2026-06-18';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
 let state=null;
@@ -819,6 +819,7 @@ function updateBadges(){
   set('coll',state.items.length); set('watch',state.watch.length); set('sites',state.sites.length);
 }
 const RENDERERS={};
+let _navPop=false;   // true när navigate() körs pga webbläsarens bakåt/framåt (då ska vi inte pusha ny historik)
 function navigate(page){
   currentPage=page;
   $$('.page').forEach(p=>p.classList.remove('active'));
@@ -829,8 +830,26 @@ function navigate(page){
   if(RENDERERS[page])RENDERERS[page]();
   if(window.innerWidth<=820)toggleSidebar(false);
   window.scrollTo({top:0,behavior:'smooth'});
+  // webbläsarhistorik: gör varje sidbyte till en historikpost så bakåtknappen fungerar
+  if(!_navPop){
+    var st={page:page,cardId:(page==='card'?_cardId:null)};
+    if(history.state==null)history.replaceState(st,'');else history.pushState(st,'');
+  }
 }
 function rerenderCurrent(){if(RENDERERS[currentPage])RENDERERS[currentPage]();updateBadges();updateTicker();}
+/* Bakåtknapp i webbläsaren. Är en bildvisare eller modal öppen stängs den först (vi sväljer
+   bakåtsteget och återställer sidans historikpost). Annars navigeras till föregående sida.
+   URL:en rörs inte (ingen hash) → ?view=-delning och inloggningsspärren påverkas inte. */
+function _repushCurrent(){history.pushState({page:currentPage,cardId:(currentPage==='card'?_cardId:null)},'');}
+window.addEventListener('popstate',function(e){
+  if($('#imgviewer')&&$('#imgviewer').classList.contains('open')){closeViewer();_repushCurrent();return;}
+  if($('#overlay')&&$('#overlay').classList.contains('open')){closeModal();_repushCurrent();return;}
+  const st=e.state;
+  _navPop=true;
+  if(st&&st.page){if(st.page==='card')_cardId=st.cardId;navigate(st.page);}
+  else navigate('dashboard');
+  _navPop=false;
+});
 
 /* theme */
 function applyTheme(){
@@ -914,8 +933,12 @@ function primaryImage(it){
   return ph.length?ph[0]:'';
 }
 function hasOwnPhoto(it){return itemPhotos(it).length>0;}
+/* Bild-fallback (quote-säker). Tidigare bäddades en SVG-ikon in i onerror="" — citattecknen
+   i SVG:n stängde attributet i förtid och bröt HTML:en (läckte ut ">-skräp + bröt layouten). */
+function imgFallback(el,cls,icon){try{var d=document.createElement('div');d.className=cls;if(icon&&typeof ic==='function')d.innerHTML=ic(icon);if(el&&el.replaceWith)el.replaceWith(d);else if(el)el.style.display='none';}catch(e){if(el)el.style.display='none';}}
+function imgFailBig(el){try{if(el&&el.parentNode)el.parentNode.innerHTML='<div class="ph">'+(typeof ic==='function'?ic('image'):'')+'<div>Bilden kunde inte laddas</div></div>';}catch(e){}}
 function thumb(it){const src=primaryImage(it);
-  if(src)return '<img class="thumb" src="'+esc(src)+'" alt="" onerror="this.outerHTML=\'<div class=\\\'thumb ph\\\'>'+ic('image')+'</div>\'">';
+  if(src)return '<img class="thumb" src="'+esc(src)+'" alt="" onerror="imgFallback(this,\'thumb ph\',\'image\')">';
   return '<div class="thumb ph">'+ic('box')+'</div>';}
 function hexA(hex,a){const h=hex.replace('#','');const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return 'rgba('+r+','+g+','+b+','+a+')';}
 function pillPct(pct){const up=pct>=0;return '<span class="pill '+(up?'up':'down')+'">'+(up?'▲':'▼')+' '+Math.abs(pct).toFixed(1)+'%</span>';}
@@ -1103,7 +1126,7 @@ RENDERERS.collection=function(){
     items.forEach(it=>{
       const market=itemMarketBase(it);
       const src=primaryImage(it);
-      const img=src?'<img src="'+esc(src)+'" alt="" loading="lazy" onerror="this.outerHTML=\'<div class=\\\'ph\\\'>'+ic('image')+'</div>\'">':'<div class="ph">'+ic('box')+'</div>';
+      const img=src?'<img src="'+esc(src)+'" alt="" loading="lazy" onerror="imgFallback(this,\'ph\',\'image\')">':'<div class="ph">'+ic('box')+'</div>';
       html+='<div class="gcard" onclick="openCard(\''+it.id+'\')">'
         +'<div class="gimg">'+img
           +((it.qty||1)>1?'<span class="gqty">×'+(it.qty||1)+'</span>':'')
@@ -1230,7 +1253,7 @@ RENDERERS.card=function(){
 
   // ----- vänster: bildscen -----
   html+='<div class="cd-stage">';
-  if(main)html+='<div class="cd-main" onclick="viewImage(\''+esc(main).replace(/'/g,"\\'")+'\')"><img src="'+esc(main)+'" alt="'+esc(it.name)+'" onerror="this.parentNode.innerHTML=\'<div class=\\\'ph\\\'>'+ic('image')+'<div>Bilden kunde inte laddas</div></div>\'"></div>';
+  if(main)html+='<div class="cd-main" onclick="viewImage(\''+esc(main).replace(/'/g,"\\'")+'\')"><img src="'+esc(main)+'" alt="'+esc(it.name)+'" onerror="imgFailBig(this)"></div>';
   else html+='<div class="cd-main" style="cursor:default"><div class="ph">'+ic('image')+'<div>Ingen bild ännu</div></div></div>';
 
   // miniatyrer: officiell + egna foton
@@ -3166,7 +3189,7 @@ function renderCatalogResults(){
   const box=$('#taResults');if(!box)return;
   if(!catalogResults.length){box.innerHTML='<div class="ta-msg">Inga träffar.</div>';return;}
   box.innerHTML=catalogResults.map((r,i)=>{
-    const img=r.image?'<img src="'+esc(r.image)+'" alt="" loading="lazy" onerror="this.outerHTML=\'<div class=\\\'ta-ph\\\'>'+ic('box')+'</div>\'">':'<div class="ta-ph">'+ic(r.kind==='set'?'layers':'box')+'</div>';
+    const img=r.image?'<img src="'+esc(r.image)+'" alt="" loading="lazy" onerror="imgFallback(this,\'ta-ph\',\'box\')">':'<div class="ta-ph">'+ic(r.kind==='set'?'layers':'box')+'</div>';
     const sub=r.kind==='set'?(r.sub||'Set / förseglat'):(r.set||'');
     return '<div class="ta-item" onmousedown="event.preventDefault()" onclick="pickCatalog('+i+')">'+img
       +'<div style="flex:1;min-width:0"><div class="ta-name">'+esc(r.name)+'</div>'+(sub?'<div class="ta-sub">'+esc(sub)+'</div>':'')+'</div>'
