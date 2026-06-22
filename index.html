@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.11 (2026-06-18) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.12 (2026-06-18) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -594,7 +594,7 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.11';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION='1.6.12';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
 const APP_VERSION_DATE='2026-06-18';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
@@ -1516,7 +1516,7 @@ function itemForm(id){
   +'<div class="fld"><label>Säljare</label><input name="seller" value="'+esc(d.seller||'')+'"></div>'
   +'<div class="fld"><label>Taggar (komma)</label><input name="tags" value="'+esc((d.tags||[]).join(', '))+'" placeholder="investering, sealed"></div>'
   +'<div class="fld full"><label>Anteckningar</label><textarea name="notes" placeholder="Transaktion, skick, plan…">'+esc(d.notes||'')+'</textarea></div>'
-  +'</div></form></div>'
+  +'</form></div>'
   +'<div class="modal-foot">'+(it?'<button class="btn danger" onclick="deleteItem(\''+it.id+'\',true)">'+ic('trash')+'Ta bort</button>':'')+'<div style="flex:1"></div><button class="btn ghost" onclick="closeModal()">Avbryt</button><button class="btn primary" onclick="saveItem(\''+(id||'')+'\')">'+ic('check')+'Spara</button></div>';
   openModal(html);
   initCatalog();
