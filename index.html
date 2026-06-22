@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.10 (2026-06-18) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.11 (2026-06-18) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -594,7 +594,7 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.10';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION='1.6.11';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
 const APP_VERSION_DATE='2026-06-18';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
@@ -1494,7 +1494,8 @@ function itemForm(id){
   const d=it||{cat:state.categories[0].id,type:PRODUCT_TYPES[0],condition:CONDITIONS[0],qty:1,buyCurrency:base(),buyDate:todayISO(),tags:[]};
   let html='<div class="modal-head"><h3>'+(it?'Redigera objekt':'Lägg till objekt')+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
   +'<div class="modal-body"><form id="itemFormEl"><div class="form-grid">'
-  +'<div class="fld full"><label>Namn <span class="req">*</span></label><div class="ta-wrap"><input name="name" id="taInput" autocomplete="off" required value="'+esc(d.name||'')+'" placeholder="Börja skriv kort- eller setnamn…"><div class="ta-results" id="taResults"></div></div><div class="cat-hint" id="taHint"></div></div>'
+  +'<div class="fld full"><label style="display:flex;align-items:center;gap:8px">Namn <span class="req">*</span><button type="button" class="btn ghost sm" style="margin-left:auto;padding:5px 10px" onclick="scanStart(\'item\')">'+ic('camera')+'Skanna med kamera</button></label><div class="ta-wrap"><input name="name" id="taInput" autocomplete="off" required value="'+esc(d.name||'')+'" placeholder="Börja skriv kort- eller setnamn…"><div class="ta-results" id="taResults"></div></div><div class="cat-hint" id="taHint"></div><input type="file" id="scanCamInput" accept="image/*" capture="environment" style="display:none" onchange="onScanPick(this)"></div>'
+  +'<div class="fld full"><div id="scanStatus" class="note-banner" style="display:none"></div></div>'
   +'<div class="fld"><label>Kategori <span class="req">*</span></label><select name="cat" id="taCat" onchange="updateExtraFields(this.value)">'+catOptions(d.cat)+'</select></div>'
   +'<div class="fld"><label>Språk</label><select name="language" id="taLang">'+langOptions(d.language||'en')+'</select></div>'
   +'<div class="fld"><label>Set / serie</label><input name="set" value="'+esc(d.set||'')+'" placeholder="t.ex. SV: 151"></div>'
@@ -1612,7 +1613,8 @@ function watchForm(id){
   const d=w||{cat:state.categories[0].id,type:PRODUCT_TYPES[0],targetCurrency:base(),preorder:false};
   let html='<div class="modal-head"><h3>'+(w?'Redigera bevakning':'Ny bevakning')+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
     +'<div class="modal-body"><form id="watchFormEl"><div class="form-grid">'
-    +'<div class="fld full"><label>Namn <span class="req">*</span></label><input name="name" required value="'+esc(d.name||'')+'"></div>'
+    +'<div class="fld full"><label style="display:flex;align-items:center;gap:8px">Namn <span class="req">*</span><button type="button" class="btn ghost sm" style="margin-left:auto;padding:5px 10px" onclick="scanStart(\'watch\')">'+ic('camera')+'Skanna med kamera</button></label><input name="name" required value="'+esc(d.name||'')+'"><input type="file" id="scanCamInput" accept="image/*" capture="environment" style="display:none" onchange="onScanPick(this)"></div>'
+    +'<div class="fld full"><div id="scanStatus" class="note-banner" style="display:none"></div></div>'
     +'<div class="fld"><label>Kategori</label><select name="cat">'+catOptions(d.cat)+'</select></div>'
     +'<div class="fld"><label>Produkttyp</label><select name="type">'+opt(PRODUCT_TYPES,d.type)+'</select></div>'
     +'<div class="fld"><label>Målpris <span class="req">*</span></label><input name="targetPrice" type="number" step="0.01" required value="'+(d.targetPrice!=null?d.targetPrice:'')+'"></div>'
@@ -1961,6 +1963,80 @@ async function aiAsk(){
     aiOut('<b style="font-family:var(--display)">'+ic('spark')+' Svar</b><div style="margin-top:10px;white-space:pre-wrap;font-size:13.5px;line-height:1.6">'+esc(txt)+'</div>');
   }catch(e){aiOut('<div class="loss">'+ic('alert')+' Fel: '+esc(e.message)+'</div><div class="dim" style="font-size:12px;margin-top:8px">Kontrollera API-nyckeln. CORS-blockering? Använd scraping-servern som proxy (nästa steg).</div>');}
   aiBusy=false;
+}
+
+/* ============================================================
+   KAMERA-SKANNING — identifiera kort/box med Claude vision
+   ============================================================ */
+let _scanTarget='item', scanBusy=false;
+const SCAN_CAT_MAP={pokemon:'pok',magic:'mtg',yugioh:'ygo',lorcana:'lor',onepiece:'op',sports:'spt',football:'fot',funko:'fnk'};
+function scanStart(target){
+  if(!state.settings.apiKey||!state.settings.apiKey.trim()){toast('Lägg in din Claude-API-nyckel under Inställningar först','warn');return;}
+  _scanTarget=target||'item';
+  const inp=$('#scanCamInput');if(inp){inp.value='';inp.click();}
+}
+function onScanPick(inputEl){const f=inputEl.files&&inputEl.files[0];if(f)runScan(f);}
+function scanBanner(html,cls){const b=$('#scanStatus');if(!b)return;b.style.display='';b.className='note-banner'+(cls?' '+cls:'');b.innerHTML=html;}
+/* skala ner + normalisera till JPEG (snabbare, under storleksgräns, fixar t.ex. HEIC från iPhone) */
+function downscaleImage(file,maxEdge){
+  return new Promise(function(res,rej){
+    const img=new Image();const url=URL.createObjectURL(file);
+    img.onload=function(){
+      const w=img.naturalWidth,h=img.naturalHeight,sc=Math.min(1,maxEdge/Math.max(w,h));
+      const cw=Math.max(1,Math.round(w*sc)),ch=Math.max(1,Math.round(h*sc));
+      const c=document.createElement('canvas');c.width=cw;c.height=ch;
+      c.getContext('2d').drawImage(img,0,0,cw,ch);URL.revokeObjectURL(url);
+      const durl=c.toDataURL('image/jpeg',0.85);
+      res({base64:durl.slice(durl.indexOf(',')+1),media:'image/jpeg'});
+    };
+    img.onerror=function(){URL.revokeObjectURL(url);rej(new Error('Kunde inte läsa bilden (format stöds ej?)'));};
+    img.src=url;
+  });
+}
+function parseScanJSON(raw){
+  if(!raw)return null;
+  let s=raw.replace(/```json/gi,'').replace(/```/g,'').trim();
+  const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a>=0&&b>a)s=s.slice(a,b+1);
+  try{return JSON.parse(s);}catch(e){return null;}
+}
+function bestProductType(s){s=(s||'').toLowerCase();for(let i=0;i<PRODUCT_TYPES.length;i++){const p=PRODUCT_TYPES[i].toLowerCase();if(p.indexOf(s)>=0||s.indexOf(p)>=0)return PRODUCT_TYPES[i];}return null;}
+async function runScan(file){
+  if(scanBusy)return;scanBusy=true;
+  scanBanner('<span class="spin">'+ic('refresh')+'</span><div>Skannar bilden med AI… det kan ta några sekunder.</div>','');
+  try{
+    const im=await downscaleImage(file,1280);
+    const sys='Du identifierar samlarkort (Pokémon, Magic, Yu-Gi-Oh!, Lorcana, One Piece, sport, fotboll) och förseglade produkter (boxar) från ETT foto. Svara ENBART med giltig JSON — ingen text runt, inga kodstaket. Hitta inte på exakta kortnummer du inte tydligt ser.';
+    const prompt='Identifiera kortet eller den förseglade produkten på bilden. Returnera JSON med exakt dessa nycklar:\n'
+      +'{"name":"kortets/produktens namn","set":"set-/serienamn om synligt, annars tom sträng","number":"kortnummer om synligt, annars tom sträng","category":"en av: pokemon, magic, yugioh, lorcana, onepiece, sports, football, funko, other","productType":"en av exakt: '+PRODUCT_TYPES.join(' | ')+'","confidence":"high|medium|low","note":"kort kommentar på svenska"}\n'
+      +'Är det ett enskilt kort: sätt productType till "Enskilt kort". Är det en box/produkt: välj den productType som bäst matchar.';
+    const content=[{type:'image',source:{type:'base64',media_type:im.media,data:im.base64}},{type:'text',text:prompt}];
+    const raw=await callClaude([{role:'user',content:content}],sys);
+    const data=parseScanJSON(raw);
+    if(!data||!data.name){scanBanner(ic('alert')+'<div>AI:n kunde inte identifiera något säkert. Prova en skarpare bild med bättre ljus, eller skriv in manuellt.</div>','warn');scanBusy=false;return;}
+    applyScan(data);
+  }catch(e){
+    scanBanner(ic('alert')+'<div>Skanningen misslyckades: '+esc(e.message||'okänt fel')+'. Kontrollera API-nyckeln i Inställningar. Vissa mobilnät blockerar direktanrop (CORS) — då behövs proxy-servern (kommande steg).</div>','warn');
+  }
+  scanBusy=false;
+}
+function applyScan(d){
+  const isItem=(_scanTarget==='item');
+  const form=isItem?$('#itemFormEl'):$('#watchFormEl');
+  if(!form){scanBusy=false;return;}
+  const catKey=SCAN_CAT_MAP[(d.category||'').toLowerCase()];
+  if(catKey&&form.cat){const has=Array.prototype.some.call(form.cat.options,function(o){return o.value===catKey;});if(has){form.cat.value=catKey;if(isItem&&typeof updateExtraFields==='function')updateExtraFields(catKey);}}
+  if(d.productType&&form.type){const pt=PRODUCT_TYPES.indexOf(d.productType)>=0?d.productType:bestProductType(d.productType);if(pt){form.type.value=pt;if(isItem&&typeof onTypeChange==='function')onTypeChange(pt);}}
+  if(d.set&&form.set)form.set.value=d.set;
+  const nm=d.name||'';
+  if(form.name)form.name.value=nm;
+  const conf=d.confidence||'medium';
+  const pill=conf==='high'?'<span class="pill up">Hög säkerhet</span>':conf==='low'?'<span class="pill flat">Låg säkerhet — kontrollera</span>':'<span class="pill flat">Medel säkerhet</span>';
+  scanBanner(ic('spark')+'<div><b>'+esc(nm)+'</b> '+pill
+    +(d.set?'<div class="dim" style="font-size:11.5px">'+esc(d.set)+(d.number?' · #'+esc(d.number):'')+(d.productType?' · '+esc(d.productType):'')+'</div>':'')
+    +(d.note?'<div class="dim" style="font-size:11px;margin-top:3px">'+esc(d.note)+'</div>':'')
+    +(isItem?'<div class="dim" style="font-size:11px;margin-top:4px">Söker i katalogen — välj rätt träff nedan, eller justera fälten.</div>':'')+'</div>','');
+  if(isItem){const ti=$('#taInput');if(ti){ti.value=nm;ti.dispatchEvent(new Event('input',{bubbles:true}));}}
+  scanBusy=false;
 }
 
 /* ============================================================
