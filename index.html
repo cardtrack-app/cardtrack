@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.13 (2026-06-18) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.14 (2026-06-23) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -594,8 +594,8 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.13';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
-const APP_VERSION_DATE='2026-06-18';
+const APP_VERSION='1.6.14';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION_DATE='2026-06-23';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
 let state=null;
@@ -1971,7 +1971,6 @@ async function aiAsk(){
 let _scanTarget='item', scanBusy=false;
 const SCAN_CAT_MAP={pokemon:'pok',magic:'mtg',yugioh:'ygo',lorcana:'lor',onepiece:'op',sports:'spt',football:'fot',funko:'fnk'};
 function scanStart(target){
-  if(!loggedIn()){toast('Logga in för att använda kamera-skanning','warn');return;}
   _scanTarget=target||'item';
   const inp=$('#scanCamInput');if(inp){inp.value='';inp.click();}
 }
@@ -2002,20 +2001,55 @@ function parseScanJSON(raw){
 function bestProductType(s){s=(s||'').toLowerCase();for(let i=0;i<PRODUCT_TYPES.length;i++){const p=PRODUCT_TYPES[i].toLowerCase();if(p.indexOf(s)>=0||s.indexOf(p)>=0)return PRODUCT_TYPES[i];}return null;}
 async function runScan(file){
   if(scanBusy)return;scanBusy=true;
-  scanBanner('<span class="spin">'+ic('refresh')+'</span><div>Skannar bilden med AI… det kan ta några sekunder.</div>','');
+  scanBanner('<span class="spin">'+ic('refresh')+'</span><div>Läser texten på bilden… det kan ta 5–15 sekunder första gången (laddar OCR-motor).</div>','');
   try{
-    const im=await downscaleImage(file,1280);
-    const sb=getSB();
-    if(!sb)throw new Error('Supabase ej konfigurerat');
-    const resp=await sb.functions.invoke('scan-identify',{body:{imageBase64:im.base64,mediaType:im.media}});
-    if(resp.error)throw new Error(resp.error.message||'Anropet misslyckades');
-    const out=resp.data;
-    if(!out||!out.ok)throw new Error((out&&out.error)||'Okänt fel från servern');
-    const data=out.data;
-    if(!data||!data.name){scanBanner(ic('alert')+'<div>AI:n kunde inte identifiera något säkert. Prova en skarpare bild med bättre ljus, eller skriv in manuellt.</div>','warn');scanBusy=false;return;}
-    applyScan(data);
+    // Ladda Tesseract.js lazy (bara vid första skanningen)
+    if(!window.Tesseract){
+      await new Promise(function(res,rej){
+        var s=document.createElement('script');
+        s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js';
+        s.onload=res;s.onerror=function(){rej(new Error('Kunde inte ladda OCR-biblioteket. Kontrollera internetanslutningen.'));};
+        document.head.appendChild(s);
+      });
+    }
+    // Skala ner bilden för snabbare OCR
+    const im=await downscaleImage(file,1200);
+    const blob=await(await fetch('data:image/jpeg;base64,'+im.base64)).blob();
+    // Kör OCR – svenska + engelska för bäst täckning av kortnamn
+    scanBanner('<span class="spin">'+ic('refresh')+'</span><div>Analyserar text på kortet/boxen…</div>','');
+    const result=await Tesseract.recognize(blob,'eng+swe',{logger:function(){}});
+    const raw=(result&&result.data&&result.data.text)||'';
+    // Extrahera användbar text: rensa specialtecken, ta rader med minst 2 tecken
+    const lines=raw.split('\n').map(function(l){return l.replace(/[^a-zA-ZåäöÅÄÖ0-9\s\-']/g,' ').replace(/\s+/g,' ').trim();}).filter(function(l){return l.length>=2;});
+    const text=lines.join(' ');
+    if(!text.trim()){
+      scanBanner(ic('alert')+'<div>Kunde inte läsa text från bilden. Tips: bättre ljus, håll kameran stilla, undvik reflektioner på holografiska kort.</div>','warn');
+      scanBusy=false;return;
+    }
+    // Försök identifiera produkt-/korttyp ur texten
+    var detectedType=null;
+    var tl=text.toLowerCase();
+    if(/elite trainer box|etb/i.test(tl))detectedType='Elite Trainer Box';
+    else if(/booster box|display/i.test(tl))detectedType='Booster Box / Display';
+    else if(/booster pack/i.test(tl))detectedType='Booster Pack';
+    else if(/tin|blister/i.test(tl))detectedType='Tin / Blister';
+    else if(/starter|theme deck/i.test(tl))detectedType='Starter / Theme Deck';
+    else if(/premium collection/i.test(tl))detectedType='Special / Premium Collection';
+    // Hitta bästa sökterm: längsta meningsfulla rad (troligast kortnamn/box-namn)
+    var best=lines.slice().sort(function(a,b){return b.length-a.length;})[0]||'';
+    // Begränsa till ~40 tecken (undvik att ta med hela boxbeskrivningar)
+    if(best.length>40)best=best.slice(0,40).trim();
+    applyScan({
+      name:best,
+      set:'',
+      number:'',
+      category:'pokemon',   // OCR kan inte se kategori – låt användaren justera
+      productType:detectedType||'Enskilt kort',
+      confidence:'low',
+      note:'Text läst med OCR. Kontrollera och justera namn/kategori. Välj rätt träff i listan nedan.'
+    });
   }catch(e){
-    scanBanner(ic('alert')+'<div>Skanningen misslyckades: '+esc(e.message||'okänt fel')+'. Är funktionen <b>scan-identify</b> deployad och hemligheten ANTHROPIC_API_KEY satt?</div>','warn');
+    scanBanner(ic('alert')+'<div>Skanningen misslyckades: '+esc(e.message||'okänt fel')+'</div>','warn');
   }
   scanBusy=false;
 }
