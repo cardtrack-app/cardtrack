@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.12 (2026-06-18) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.13 (2026-06-18) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -594,7 +594,7 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.12';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION='1.6.13';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
 const APP_VERSION_DATE='2026-06-18';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
@@ -1971,7 +1971,7 @@ async function aiAsk(){
 let _scanTarget='item', scanBusy=false;
 const SCAN_CAT_MAP={pokemon:'pok',magic:'mtg',yugioh:'ygo',lorcana:'lor',onepiece:'op',sports:'spt',football:'fot',funko:'fnk'};
 function scanStart(target){
-  if(!state.settings.apiKey||!state.settings.apiKey.trim()){toast('Lägg in din Claude-API-nyckel under Inställningar först','warn');return;}
+  if(!loggedIn()){toast('Logga in för att använda kamera-skanning','warn');return;}
   _scanTarget=target||'item';
   const inp=$('#scanCamInput');if(inp){inp.value='';inp.click();}
 }
@@ -2005,17 +2005,17 @@ async function runScan(file){
   scanBanner('<span class="spin">'+ic('refresh')+'</span><div>Skannar bilden med AI… det kan ta några sekunder.</div>','');
   try{
     const im=await downscaleImage(file,1280);
-    const sys='Du identifierar samlarkort (Pokémon, Magic, Yu-Gi-Oh!, Lorcana, One Piece, sport, fotboll) och förseglade produkter (boxar) från ETT foto. Svara ENBART med giltig JSON — ingen text runt, inga kodstaket. Hitta inte på exakta kortnummer du inte tydligt ser.';
-    const prompt='Identifiera kortet eller den förseglade produkten på bilden. Returnera JSON med exakt dessa nycklar:\n'
-      +'{"name":"kortets/produktens namn","set":"set-/serienamn om synligt, annars tom sträng","number":"kortnummer om synligt, annars tom sträng","category":"en av: pokemon, magic, yugioh, lorcana, onepiece, sports, football, funko, other","productType":"en av exakt: '+PRODUCT_TYPES.join(' | ')+'","confidence":"high|medium|low","note":"kort kommentar på svenska"}\n'
-      +'Är det ett enskilt kort: sätt productType till "Enskilt kort". Är det en box/produkt: välj den productType som bäst matchar.';
-    const content=[{type:'image',source:{type:'base64',media_type:im.media,data:im.base64}},{type:'text',text:prompt}];
-    const raw=await callClaude([{role:'user',content:content}],sys);
-    const data=parseScanJSON(raw);
+    const sb=getSB();
+    if(!sb)throw new Error('Supabase ej konfigurerat');
+    const resp=await sb.functions.invoke('scan-identify',{body:{imageBase64:im.base64,mediaType:im.media}});
+    if(resp.error)throw new Error(resp.error.message||'Anropet misslyckades');
+    const out=resp.data;
+    if(!out||!out.ok)throw new Error((out&&out.error)||'Okänt fel från servern');
+    const data=out.data;
     if(!data||!data.name){scanBanner(ic('alert')+'<div>AI:n kunde inte identifiera något säkert. Prova en skarpare bild med bättre ljus, eller skriv in manuellt.</div>','warn');scanBusy=false;return;}
     applyScan(data);
   }catch(e){
-    scanBanner(ic('alert')+'<div>Skanningen misslyckades: '+esc(e.message||'okänt fel')+'. Kontrollera API-nyckeln i Inställningar. Vissa mobilnät blockerar direktanrop (CORS) — då behövs proxy-servern (kommande steg).</div>','warn');
+    scanBanner(ic('alert')+'<div>Skanningen misslyckades: '+esc(e.message||'okänt fel')+'. Är funktionen <b>scan-identify</b> deployad och hemligheten ANTHROPIC_API_KEY satt?</div>','warn');
   }
   scanBusy=false;
 }
