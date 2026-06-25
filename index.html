@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.14 (2026-06-23) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.15 (2026-06-25) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -562,6 +562,516 @@ const ICONS={
 };
 function ic(n){return '<svg class="ic" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="'+(ICONS[n]||'')+'"/></svg>';}
 
+/* ============================================================
+   I18N — flerspråkigt stöd (sv / en)
+   Användning: t('nyckel')  eller  t('nyckel','ersättning1','ersättning2')
+   %s i strängen ersätts i ordning med extra-argumenten.
+   Lägg till nya strängar i BÅDA språken.
+   ============================================================ */
+const LANG={
+  sv:{
+    /* Navigation */
+    nav_dashboard:'Dashboard',nav_collection:'Samling',nav_watchlist:'Köplista',
+    nav_history:'Prishistorik',nav_sites:'Sajter',nav_categories:'Kategorier',
+    nav_settings:'Inställningar',nav_admin:'Admin',
+    /* Topbar */
+    topbar_add:'Lägg till',topbar_search:'Sök…',
+    /* Dashboard */
+    dash_portfolio:'Portföljvärde',dash_cost:'Inköpskostnad',dash_profit:'Vinst/förlust',
+    dash_items:'Objekt',dash_buy_today:'Köp idag',dash_no_watches:'Inga bevakningar',
+    dash_recent:'Senaste prisloggning',dash_no_recent:'Inga priser loggade ännu',
+    dash_category:'Kategorifördelning',dash_no_items:'Inga objekt i samlingen',
+    dash_priced:'prissatta',dash_unpriced:'oprissatta',
+    /* Samling */
+    coll_title:'Samling',coll_add:'Lägg till objekt',coll_search:'Sök namn, set…',
+    coll_filter_all:'Alla kategorier',coll_empty_title:'Samlingen är tom',
+    coll_empty_body:'Lägg till ditt första kort eller box för att komma igång.',
+    coll_col_name:'Namn',coll_col_set:'Set',coll_col_cat:'Kategori',
+    coll_col_cond:'Skick',coll_col_qty:'Antal',coll_col_cost:'Inköp',
+    coll_col_market:'Marknad',coll_col_actions:'Åtgärder',
+    /* Köplista */
+    watch_title:'Köplista',watch_add:'Ny bevakning',watch_search:'Sök bevakning…',
+    watch_empty_title:'Köplistan är tom',
+    watch_empty_body:'Lägg till ett kort eller en box du letar efter — appen håller koll på priset.',
+    watch_col_name:'Namn',watch_col_target:'Målpris',watch_col_best:'Bästa pris',
+    watch_col_diff:'Diff',watch_col_actions:'Åtgärder',
+    watch_hit:'UNDER MÅL',watch_close:'NÄR MÅL',
+    /* Prishistorik */
+    hist_title:'Prishistorik',hist_notings:'noteringar',hist_all_items:'Alla objekt',
+    hist_all_sites:'Alla sajter',hist_col_date:'Datum',hist_col_item:'Objekt',
+    hist_col_site:'Sajt',hist_col_price:'Pris',hist_col_base:'I %s',hist_col_source:'Källa',
+    hist_auto:'AUTO',hist_manual:'MANUELL',hist_empty:'Ingen prishistorik',
+    hist_empty_body:'Varje gång du uppdaterar ett pris loggas det här.',
+    hist_showing:'Visar senaste %s av %s.',
+    /* Sajter */
+    sites_title:'Sajter',sites_add_defaults:'Lägg till standardsajter',sites_add:'Ny sajt',
+    sites_col_site:'Sajt',sites_col_country:'Land',sites_col_currency:'Valuta',
+    sites_col_shipping:'Frakt',sites_col_free_ship:'Fri frakt över',sites_col_rating:'Betyg',
+    sites_col_actions:'Åtgärder',sites_products_priced:'produkter prissatta',
+    sites_outside_eu:'utanför EU',sites_free:'fri',
+    sites_form_new:'Ny sajt',sites_form_edit:'Redigera sajt',
+    sites_form_name:'Namn',sites_form_icon:'Ikon (kort)',sites_form_url:'URL',
+    sites_form_currency:'Valuta',sites_form_country:'Land (kod)',sites_form_region:'Region',
+    sites_form_region_eu:'Inom EU',sites_form_region_non_eu:'Utanför EU (moms/tull)',
+    sites_form_rating:'Betyg (0–5)',sites_form_shipping:'Standardfrakt',
+    sites_form_free_threshold:'Fri frakt över (0 = aldrig)',sites_form_color:'Färg',
+    sites_form_codes:'Rabattkoder (komma)',sites_form_codes_ph:'dina egna koder, kommaseparerade',
+    sites_form_benefits:'Medlemsförmåner',sites_form_benefits_ph:'t.ex. stamkundspoäng',
+    sites_form_notes:'Anteckning / tillförlitlighet',
+    sites_delete_confirm:'Ta bort sajten "%s"? Priser kopplade till den tas också bort.',
+    sites_added:'sajt tillagd',sites_updated:'Sajt uppdaterad',sites_deleted:'Sajt borttagen',
+    sites_defaults_added:'%s standardsajter tillagda',sites_defaults_all:'Alla standardsajter finns redan',
+    sites_name_required:'Namn krävs',
+    /* Kategorier */
+    cats_title:'Kategorier',cats_add:'Ny kategori',cats_items:'objekt',
+    cats_form_new:'Ny kategori',cats_form_edit:'Redigera kategori',
+    cats_form_name:'Namn',cats_form_color:'Färg',
+    cats_delete_confirm:'Ta bort kategorin "%s"?',cats_delete_has_items:' %s objekt blir utan kategori.',
+    cats_name_required:'Namn krävs',cats_updated:'Kategori uppdaterad',
+    cats_added:'Kategori tillagd',cats_deleted:'Kategori borttagen',
+    /* Inställningar */
+    sett_title:'Inställningar',
+    sett_currency_title:'Valuta & växelkurser',
+    sett_currency_desc:'Kurser anges som värde i basvaluta per 1 enhet. Uppdatera manuellt eller hämta dagskurser.',
+    sett_base_currency:'Basvaluta',sett_rate_label:'1 %s = ? %s',
+    sett_save_rates:'Spara kurser',sett_fetch_rates:'Hämta dagskurser',
+    sett_rates_updated:'Uppdaterad automatiskt %s',sett_rates_fetching:'Hämtar vid första start…',
+    sett_import_title:'Import: moms & tull',
+    sett_import_desc:'Uppskattning som läggs på köp från sajter utanför EU i totalpriskalkyler.',
+    sett_vat:'Moms vid import (%)',sett_customs:'Tull/hanteringsavgift per försändelse (%s)',
+    sett_save:'Spara',
+    sett_ai_title:'AI & Claude API',
+    sett_ai_desc:'Din API-nyckel lagras endast lokalt på din enhet. Hämta nyckel på console.anthropic.com.',
+    sett_api_key:'API-nyckel',sett_model:'Modell',sett_server:'Scraping-server URL',
+    sett_lock_title:'Säkerhet — applås',
+    sett_lock_desc:'Lås appen med en kod. Då krypteras all data lokalt (AES-256-GCM, nyckel härledd med PBKDF2/SHA-256, 210 000 iterationer) och kräver koden för att läsas — även om någon kommer åt din enhet.',
+    sett_lock_warn:'Detta skyddar data <b>lokalt på denna enhet</b>. Koden går inte att återställa — glömmer du den går datan inte att låsa upp. Riktig inloggning för flera användare/enheter sker via scraping-/backend-servern (nästa steg).',
+    sett_lock_active:'Lås aktivt',sett_lock_change:'Byt kod',sett_lock_disable:'Stäng av lås',
+    sett_lock_enable:'Aktivera applås',
+    sett_cloud_title:'Molnsynkning & konto',
+    sett_cloud_desc:'Inloggning och databas via <b>Supabase</b> (gratis). Frontend pratar direkt med Supabase — ingen egen server behövs. Aktivera applås ovan för att kryptera molndatan E2E.',
+    sett_sb_url:'Supabase Project URL',sett_sb_key:'Supabase anon/public-nyckel',
+    sett_sb_save:'Spara anslutning',sett_sb_configured:'Konfigurerad',
+    sett_sb_hint:'Ange uppgifter från Supabase → Project Settings → API',
+    sett_logged_in_as:'Inloggad som',sett_last_sync:'Senast synkad: %s',sett_not_synced:'Ej synkad ännu',
+    sett_sync_now:'Synka nu',sett_pull:'Hämta från moln',sett_auto_sync:'Auto-synk vid ändring',
+    sett_logout:'Logga ut',
+    sett_share_title:'Dela din samling',
+    sett_share_public:'Samlingen är <b>publik</b>',sett_share_private:'Samlingen är <b>privat</b>',
+    sett_share_copy:'Kopiera länk',
+    sett_share_hint_prices:'Alla med länken kan se dina kort (inklusive priser).',
+    sett_share_hint_no_prices:'Alla med länken kan se dina kort (utan priser).',
+    sett_share_off_hint:'Aktivera för att dela din samling med andra via en länk.',
+    sett_2fa_title:'Tvåfaktor (2FA)',
+    sett_delete_account:'Radera konto & molndata',
+    sett_login:'Logga in',sett_register:'Registrera konto',
+    sett_backup_title:'Säkerhetskopia & data',
+    sett_backup_desc:'All data lagras lokalt i din webbläsare. Exportera regelbundet som backup.',
+    sett_export:'Exportera JSON',sett_import:'Importera JSON',
+    sett_theme_dark:'Växla till ljust tema',sett_theme_light:'Växla till mörkt tema',
+    sett_clear:'Töm samlingen',sett_reset:'Återställ allt',
+    sett_lang:'Språk / Language',
+    /* Objekt-formulär */
+    item_form_new:'Lägg till objekt',item_form_edit:'Redigera objekt',
+    item_name:'Namn',item_set:'Set / Expansion',item_number:'Kortnummer',
+    item_cat:'Kategori',item_type:'Typ',item_lang:'Språk',item_condition:'Skick',
+    item_qty:'Antal',item_cost:'Inköpspris',item_cost_currency:'Valuta',
+    item_notes:'Anteckningar',item_scan:'Skanna med kamera',
+    item_save:'Spara',item_cancel:'Avbryt',item_delete:'Ta bort',
+    item_name_required:'Namn krävs',
+    item_delete_confirm:'Ta bort "%s"?',
+    item_saved:'Objekt sparat',item_deleted:'Objekt borttaget',
+    item_fetch_prices:'Hämta automatiska priser',item_fetching:'Hämtar…',
+    item_no_auto_price:'Inget automatiskt pris hittades — lägg till URL-länk manuellt per sajt',
+    item_prices_fetched:'%s pris hämtade — granska och justera, sedan Spara',
+    item_no_currency_match:'Inga konfigurerade sajter matchar valutan i hämtad data',
+    /* Kortsida */
+    card_best_price:'Bästa pris',card_cost:'Inköp',card_market:'Marknad',
+    card_profit:'Vinst/förlust',card_buy_score:'Köpbetyg',card_no_prices:'Inga priser',
+    card_add_price:'Lägg till pris',card_price:'Pris',card_shipping:'Frakt',
+    card_url:'Länk till produkt',card_notes:'Anteckningar',
+    card_photos:'Egna foton',card_photo_add:'Lägg till foto',
+    card_photo_main:'Välj som huvudbild',card_photo_delete:'Ta bort foto',
+    /* OCR / Skanning */
+    scan_loading:'Läser texten på bilden… det kan ta 5–15 sekunder första gången (laddar OCR-motor).',
+    scan_analyzing:'Analyserar text på kortet/boxen…',
+    scan_no_text:'Kunde inte läsa text från bilden. Tips: bättre ljus, håll kameran stilla, undvik reflektioner på holografiska kort.',
+    scan_failed:'Skanningen misslyckades: %s',scan_lib_error:'Kunde inte ladda OCR-biblioteket. Kontrollera internetanslutningen.',
+    scan_img_error:'Kunde inte läsa bilden (format stöds ej?)',
+    scan_confidence_high:'Hög säkerhet',scan_confidence_low:'Låg säkerhet — kontrollera',
+    scan_confidence_med:'Medel säkerhet',
+    scan_note:t('scan_note'),
+    scan_search_hint:'Söker i katalogen — välj rätt träff nedan, eller justera fälten.',
+    /* Katalog-autocomplete */
+    cat_no_catalog:'Ingen automatisk katalog för <b style="color:var(--text-dim)">%s</b> — fyll i namn manuellt. Se extrafält nedan.',
+    cat_searching:'Söker…',cat_no_hits:'Inga träffar.',
+    cat_searching_active:'Sökning aktiv: <b style="color:var(--text-dim)">%s</b>',
+    cat_multilang:'· flerspråkig',cat_click_boxes:'· klicka för boxar',
+    cat_boxes_hint:'Klicka för boxar (ETB, Booster Box…)',
+    cat_no_cat:'Ingen katalog för denna kategori än — fyll i namn manuellt.',
+    cat_fetched_from:'Hämtat från %s',
+    /* AI-assistenten */
+    ai_question:'Skriv en fråga',ai_answer:'Svar',ai_busy:'Analyserar…',
+    ai_response_header:'Svar',
+    /* Notiser / prisnål */
+    notif_not_supported:'Webbläsaren stödjer inte notiser',
+    notif_already:'Notiser är redan tillåtna',
+    notif_denied:'Notiser nekades — prisnålar syns ändå i appen',
+    alert_title:'Prisnål!',alert_best_now:'BÄSTA PRIS NU',alert_target:'DITT MÅLPRIS',
+    alert_under:'UNDER MÅL',alert_buy_now:'Köp nu',alert_to_watchlist:'Till köplistan',
+    alert_close:'Stäng',alert_notif_body:'%s · Bästa pris: %s (mål %s)',
+    /* Auth */
+    auth_fill:'Fyll i e-post och lösenord',
+    auth_registered:'Konto skapat — bekräfta via mejlet och logga sedan in',
+    auth_2fa_prompt:'Ange den 6-siffriga koden från din authenticator-app:',
+    auth_2fa_required:'Tvåfaktor krävs för att logga in',auth_2fa_wrong:'Fel kod — försök igen',
+    auth_forgot:'Ange din e-post så skickar vi en återställningslänk:',
+    auth_reset_sent:'Återställningsmejl skickat till %s',
+    auth_new_password:'Välj nytt lösenord',
+    auth_reset_prompt:'Du följde återställningslänken. Ange ett nytt lösenord nedan.',
+    auth_password_updated:'Lösenord uppdaterat',
+    auth_logout_confirm:'Logga ut? Din lokala data på den här enheten rensas (den finns kvar i molnet).',
+    auth_delete_confirm:'Radera ditt konto och all molndata permanent? Detta går inte att ångra.',
+    auth_delete_confirm2:'Helt säker? All data i molnet tas bort och du loggas ut. (Din lokala data på enheten finns kvar.)',
+    auth_deleted_full:'Konto raderat',auth_deleted_partial:'Molndata raderad & utloggad',
+    /* Applås */
+    lock_prompt:'Välj en kod för att låsa appen (minst 4 tecken):',
+    lock_too_short:'Koden är för kort',lock_confirm:'Bekräfta koden:',
+    lock_mismatch:'Matchade inte',lock_activated:'Applås aktiverat — data krypterad',
+    lock_disable_confirm:'Stäng av applåset? Data sparas då okrypterat på enheten.',
+    lock_disabled:'Applås avstängt',lock_new:'Ny kod (minst 4 tecken):',
+    lock_confirm_new:'Bekräfta ny kod:',lock_too_short2:'För kort',lock_updated:'Kod uppdaterad',
+    lock_title:'Ange din kod för att låsa upp.',lock_placeholder:'••••••',
+    lock_unlock:'Lås upp',lock_wrong:'Fel kod — försök igen.',
+    /* Molnsynk */
+    cloud_not_configured:'Supabase ej konfigurerat',cloud_not_logged_in:'Inte inloggad',
+    cloud_no_data:'Inget data',cloud_sync_failed:'Synk misslyckades: %s',
+    cloud_synced:'Synkad till molnet',cloud_pull_confirm:'Hämta data från molnet? Detta ERSÄTTER din nuvarande lokala data.',
+    cloud_pulled:'Hämtat — laddar om…',cloud_pull_empty:'Inget data i molnet',
+    cloud_pull_failed:'Misslyckades: %s',cloud_sb_saved:'Supabase-inställningar sparade',
+    cloud_sb_load_fail:'Supabase-biblioteket kunde inte laddas (nät?)',
+    cloud_public_warn:'Kunde inte synka publik-status (har Steg 3-SQL körts?):',
+    cloud_upload_login:'Logga in för att ladda upp foton',
+    cloud_photo_too_big:'Bilden är för stor (max 8 MB)',
+    cloud_photo_not_image:'Endast bildfiler stöds',
+    /* Publik delning */
+    share_prices_confirm:'Vill du inkludera dina priser i den delade vyn?\n\nOK = priser visas för besökare\nAvbryt = priser döljs (rekommenderat)',
+    share_now_public:'Samlingen är nu publik — dela länken nedan',
+    share_now_private:'Samlingen är nu privat',
+    share_no_id:'Kunde inte hämta din ID — logga ut och in igen',
+    share_copied:'Länk kopierad!',share_copy_failed:'Kunde inte kopiera — %s',
+    share_loading:'Laddar samling…',share_not_found:'Samlingen hittades inte',
+    share_not_found_body:'Antingen är samlingen inte publik eller har länken gått ut.',
+    share_back:'Tillbaka',share_parse_error:'Kunde inte läsa samlingen',
+    share_encrypted:'Samlingen är krypterad',
+    share_encrypted_body:'Ägaren har applås aktiverat — innehållet kan inte visas publikt.',
+    share_banner:'Du ser en annans publika samling. Skrivskyddad — inga ändringar sparas.',
+    share_empty:'Samlingen är tom',share_readonly:'Skrivskyddad vy — %s objekt',
+    share_col_name:'Namn',share_col_set:'Set',share_col_cat:'Kategori',
+    share_col_cond:'Skick',share_col_qty:'Antal',share_col_price:'Bästa pris',
+    /* Admin */
+    admin_title:'Admin',admin_loading:'Laddar användare…',admin_none:'Inga användare hittades.',
+    admin_fetch_fail:'Kunde inte hämta användare: %s',
+    admin_ban_confirm:'Banna denna användare? De kan inte logga in förrän kontot avbannas.',
+    admin_unban_confirm:'Avbanna denna användare?',
+    admin_banned:'Användare bannad',admin_unbanned:'Användare avbannad',
+    admin_delete_confirm:'Radera detta konto permanent? Konto + molndata tas bort och går inte att ångra.',
+    admin_delete_confirm2:'Helt säker? Detta kan inte ångras.',
+    admin_deleted:'Användare raderad',
+    admin_login_first:'Logga in först',
+    /* 2FA */
+    mfa_checking:'Kontrollerar tvåfaktor…',mfa_error:'Kunde inte läsa 2FA-status.',
+    mfa_active:'Tvåfaktor aktiv',mfa_enable:'Aktivera tvåfaktor (authenticator)',
+    mfa_setup_title:'Aktivera tvåfaktor',mfa_enter_code:'Ange koden från appen',
+    mfa_activated:'Tvåfaktor aktiverat',
+    mfa_disable_confirm:'Stänga av tvåfaktor? Kontot skyddas då bara av lösenord.',
+    mfa_disabled:'Tvåfaktor avstängt',
+    /* Backup / data */
+    backup_exported:'Backup exporterad',backup_import_invalid:'Ogiltig fil: %s',
+    backup_import_not_cardtrack:'Filen verkar inte vara en CardTrack-backup',
+    backup_import_confirm:'Ersätt nuvarande data med importerad backup?',
+    backup_imported:'Data importerad',
+    clear_confirm:'Töm samlingen? Alla objekt och bevakningar tas bort (sajter och inställningar behålls).',
+    clear_done:'Samlingen är nu tom',clear_sync_hint:' — tryck "Synka nu" under Inställningar',
+    reset_confirm:'Återställ ALLT? Alla data, inställningar och sajter nollställs.',
+    reset_done:'Allt återställt',
+    save_error:'Kunde inte spara lokalt — %s',
+    /* Valuta / växelkurs */
+    rates_saved:'Växelkurser sparade',rates_fetching:'Hämtar kurser…',
+    rates_fetched:'Dagskurser hämtade (ECB via frankfurter.app)',
+    rates_fail:'Kunde inte hämta dagskurser',
+    import_saved:'Importinställningar sparade',api_saved:'API-inställningar sparade',
+    base_changed:'Basvaluta: %s',
+    /* Auto-synk / fetch-all */
+    fetch_all_start:'Startar prisfetchning för %s objekt…',
+    fetch_all_progress:'Hämtar %s (%s av %s objekt genomgångna)',
+    fetch_all_no_change:'Alla priser kontrollerade — inga ändringar',
+    /* Diverse */
+    no_catalog_provider:'Ingen automatisk katalog för denna kategori än — fyll i namn manuellt.',
+    sealed:'förseglad',
+    extra_fields:'Extrafält — %s',
+    auto_sync_on:'på',auto_sync_off:'av',
+    auto_sync_toast:'Auto-synk %s',
+    supabase_not_configured:'Ange Supabase-URL och nyckel under Inställningar först',
+    local_has_data_confirm:'Det finns ingen data i molnet för det här kontot.\n\nOK = ladda upp din NUVARANDE lokala data till kontot.\nAvbryt = börja med en TOM samling.',
+  },
+  en:{
+    /* Navigation */
+    nav_dashboard:'Dashboard',nav_collection:'Collection',nav_watchlist:'Watchlist',
+    nav_history:'Price History',nav_sites:'Sites',nav_categories:'Categories',
+    nav_settings:'Settings',nav_admin:'Admin',
+    /* Topbar */
+    topbar_add:'Add',topbar_search:'Search…',
+    /* Dashboard */
+    dash_portfolio:'Portfolio Value',dash_cost:'Purchase Cost',dash_profit:'Profit/Loss',
+    dash_items:'Items',dash_buy_today:'Buy Today',dash_no_watches:'No watchlist entries',
+    dash_recent:'Recent Price Logs',dash_no_recent:'No prices logged yet',
+    dash_category:'Category Breakdown',dash_no_items:'No items in collection',
+    dash_priced:'priced',dash_unpriced:'unpriced',
+    /* Collection */
+    coll_title:'Collection',coll_add:'Add Item',coll_search:'Search name, set…',
+    coll_filter_all:'All categories',coll_empty_title:'Collection is empty',
+    coll_empty_body:'Add your first card or box to get started.',
+    coll_col_name:'Name',coll_col_set:'Set',coll_col_cat:'Category',
+    coll_col_cond:'Condition',coll_col_qty:'Qty',coll_col_cost:'Cost',
+    coll_col_market:'Market',coll_col_actions:'Actions',
+    /* Watchlist */
+    watch_title:'Watchlist',watch_add:'New Watch',watch_search:'Search watchlist…',
+    watch_empty_title:'Watchlist is empty',
+    watch_empty_body:'Add a card or box you\'re looking for — the app tracks the price.',
+    watch_col_name:'Name',watch_col_target:'Target',watch_col_best:'Best Price',
+    watch_col_diff:'Diff',watch_col_actions:'Actions',
+    watch_hit:'UNDER TARGET',watch_close:'NEAR TARGET',
+    /* Price History */
+    hist_title:'Price History',hist_notings:'entries',hist_all_items:'All items',
+    hist_all_sites:'All sites',hist_col_date:'Date',hist_col_item:'Item',
+    hist_col_site:'Site',hist_col_price:'Price',hist_col_base:'In %s',hist_col_source:'Source',
+    hist_auto:'AUTO',hist_manual:'MANUAL',hist_empty:'No price history',
+    hist_empty_body:'Every time you update a price it\'s logged here.',
+    hist_showing:'Showing last %s of %s.',
+    /* Sites */
+    sites_title:'Sites',sites_add_defaults:'Add default sites',sites_add:'New Site',
+    sites_col_site:'Site',sites_col_country:'Country',sites_col_currency:'Currency',
+    sites_col_shipping:'Shipping',sites_col_free_ship:'Free shipping over',sites_col_rating:'Rating',
+    sites_col_actions:'Actions',sites_products_priced:'products priced',
+    sites_outside_eu:'outside EU',sites_free:'free',
+    sites_form_new:'New Site',sites_form_edit:'Edit Site',
+    sites_form_name:'Name',sites_form_icon:'Icon (short)',sites_form_url:'URL',
+    sites_form_currency:'Currency',sites_form_country:'Country (code)',sites_form_region:'Region',
+    sites_form_region_eu:'Within EU',sites_form_region_non_eu:'Outside EU (VAT/customs)',
+    sites_form_rating:'Rating (0–5)',sites_form_shipping:'Default Shipping',
+    sites_form_free_threshold:'Free shipping over (0 = never)',sites_form_color:'Color',
+    sites_form_codes:'Discount Codes (comma)',sites_form_codes_ph:'your own codes, comma-separated',
+    sites_form_benefits:'Member Benefits',sites_form_benefits_ph:'e.g. loyalty points',
+    sites_form_notes:'Note / Reliability',
+    sites_delete_confirm:'Remove site "%s"? Prices linked to it will also be removed.',
+    sites_added:'site added',sites_updated:'Site updated',sites_deleted:'Site removed',
+    sites_defaults_added:'%s default sites added',sites_defaults_all:'All default sites already present',
+    sites_name_required:'Name required',
+    /* Categories */
+    cats_title:'Categories',cats_add:'New Category',cats_items:'items',
+    cats_form_new:'New Category',cats_form_edit:'Edit Category',
+    cats_form_name:'Name',cats_form_color:'Color',
+    cats_delete_confirm:'Remove category "%s"?',cats_delete_has_items:' %s items will lose their category.',
+    cats_name_required:'Name required',cats_updated:'Category updated',
+    cats_added:'Category added',cats_deleted:'Category removed',
+    /* Settings */
+    sett_title:'Settings',
+    sett_currency_title:'Currency & Exchange Rates',
+    sett_currency_desc:'Rates are given as value in base currency per 1 unit. Update manually or fetch live rates.',
+    sett_base_currency:'Base Currency',sett_rate_label:'1 %s = ? %s',
+    sett_save_rates:'Save Rates',sett_fetch_rates:'Fetch Live Rates',
+    sett_rates_updated:'Auto-updated %s',sett_rates_fetching:'Fetching on first launch…',
+    sett_import_title:'Import: VAT & Customs',
+    sett_import_desc:'Estimate added to purchases from sites outside EU in total price calculations.',
+    sett_vat:'Import VAT (%)',sett_customs:'Customs/handling fee per shipment (%s)',
+    sett_save:'Save',
+    sett_ai_title:'AI & Claude API',
+    sett_ai_desc:'Your API key is stored locally on your device only. Get a key at console.anthropic.com.',
+    sett_api_key:'API Key',sett_model:'Model',sett_server:'Scraping Server URL',
+    sett_lock_title:'Security — App Lock',
+    sett_lock_desc:'Lock the app with a passcode. All data is encrypted locally (AES-256-GCM, key derived with PBKDF2/SHA-256, 210 000 iterations) and requires the code to read — even if someone gets access to your device.',
+    sett_lock_warn:'This protects data <b>locally on this device</b>. The code cannot be recovered — if you forget it, the data cannot be unlocked. Real multi-user/multi-device login comes via the scraping/backend server (next step).',
+    sett_lock_active:'Lock active',sett_lock_change:'Change code',sett_lock_disable:'Disable lock',
+    sett_lock_enable:'Enable App Lock',
+    sett_cloud_title:'Cloud Sync & Account',
+    sett_cloud_desc:'Login and database via <b>Supabase</b> (free). Frontend talks directly to Supabase — no own server needed. Enable app lock above to encrypt cloud data E2E.',
+    sett_sb_url:'Supabase Project URL',sett_sb_key:'Supabase anon/public key',
+    sett_sb_save:'Save Connection',sett_sb_configured:'Configured',
+    sett_sb_hint:'Enter details from Supabase → Project Settings → API',
+    sett_logged_in_as:'Logged in as',sett_last_sync:'Last synced: %s',sett_not_synced:'Not synced yet',
+    sett_sync_now:'Sync Now',sett_pull:'Pull from Cloud',sett_auto_sync:'Auto-sync on change',
+    sett_logout:'Log Out',
+    sett_share_title:'Share Your Collection',
+    sett_share_public:'Collection is <b>public</b>',sett_share_private:'Collection is <b>private</b>',
+    sett_share_copy:'Copy Link',
+    sett_share_hint_prices:'Anyone with the link can see your cards (including prices).',
+    sett_share_hint_no_prices:'Anyone with the link can see your cards (without prices).',
+    sett_share_off_hint:'Enable to share your collection with others via a link.',
+    sett_2fa_title:'Two-Factor Authentication (2FA)',
+    sett_delete_account:'Delete Account & Cloud Data',
+    sett_login:'Log In',sett_register:'Create Account',
+    sett_backup_title:'Backup & Data',
+    sett_backup_desc:'All data is stored locally in your browser. Export regularly as backup.',
+    sett_export:'Export JSON',sett_import_btn:'Import JSON',
+    sett_theme_dark:'Switch to Light Theme',sett_theme_light:'Switch to Dark Theme',
+    sett_clear:'Clear Collection',sett_reset:'Reset All',
+    sett_lang:'Language / Språk',
+    /* Item form */
+    item_form_new:'Add Item',item_form_edit:'Edit Item',
+    item_name:'Name',item_set:'Set / Expansion',item_number:'Card Number',
+    item_cat:'Category',item_type:'Type',item_lang:'Language',item_condition:'Condition',
+    item_qty:'Quantity',item_cost:'Purchase Price',item_cost_currency:'Currency',
+    item_notes:'Notes',item_scan:'Scan with Camera',
+    item_save:'Save',item_cancel:'Cancel',item_delete:'Delete',
+    item_name_required:'Name required',
+    item_delete_confirm:'Remove "%s"?',
+    item_saved:'Item saved',item_deleted:'Item removed',
+    item_fetch_prices:'Fetch Automatic Prices',item_fetching:'Fetching…',
+    item_no_auto_price:'No automatic price found — add URL link manually per site',
+    item_prices_fetched:'%s prices fetched — review and adjust, then Save',
+    item_no_currency_match:'No configured sites match the currency in fetched data',
+    /* Card page */
+    card_best_price:'Best Price',card_cost:'Cost',card_market:'Market',
+    card_profit:'Profit/Loss',card_buy_score:'Buy Score',card_no_prices:'No Prices',
+    card_add_price:'Add Price',card_price:'Price',card_shipping:'Shipping',
+    card_url:'Product Link',card_notes:'Notes',
+    card_photos:'Own Photos',card_photo_add:'Add Photo',
+    card_photo_main:'Set as Main',card_photo_delete:'Delete Photo',
+    /* OCR / Scan */
+    scan_loading:'Reading text on image… first scan may take 5–15 seconds (loading OCR engine).',
+    scan_analyzing:'Analyzing text on card/box…',
+    scan_no_text:'Could not read text from image. Tips: better lighting, hold camera steady, avoid reflections on holographic cards.',
+    scan_failed:'Scan failed: %s',scan_lib_error:'Could not load OCR library. Check your internet connection.',
+    scan_img_error:'Could not read image (unsupported format?)',
+    scan_confidence_high:'High confidence',scan_confidence_low:'Low confidence — please verify',
+    scan_confidence_med:'Medium confidence',
+    scan_note:'Text read by OCR. Verify and adjust name/category. Choose the right match below.',
+    scan_search_hint:'Searching catalog — choose the right match below, or adjust the fields.',
+    /* Catalog autocomplete */
+    cat_no_catalog:'No automatic catalog for <b style="color:var(--text-dim)">%s</b> — enter name manually. See extra fields below.',
+    cat_searching:'Searching…',cat_no_hits:'No results.',
+    cat_searching_active:'Search active: <b style="color:var(--text-dim)">%s</b>',
+    cat_multilang:'· multilingual',cat_click_boxes:'· click for boxes',
+    cat_boxes_hint:'Click for boxes (ETB, Booster Box…)',
+    cat_no_cat:'No catalog for this category yet — enter name manually.',
+    cat_fetched_from:'Fetched from %s',
+    /* AI assistant */
+    ai_question:'Ask a question',ai_answer:'Answer',ai_busy:'Analyzing…',
+    ai_response_header:'Answer',
+    /* Notifications / price alert */
+    notif_not_supported:'Browser does not support notifications',
+    notif_already:'Notifications already allowed',
+    notif_denied:'Notifications denied — price alerts still show in app',
+    alert_title:'Price Alert!',alert_best_now:'BEST PRICE NOW',alert_target:'YOUR TARGET',
+    alert_under:'UNDER TARGET',alert_buy_now:'Buy Now',alert_to_watchlist:'To Watchlist',
+    alert_close:'Close',alert_notif_body:'%s · Best price: %s (target %s)',
+    /* Auth */
+    auth_fill:'Enter email and password',
+    auth_registered:'Account created — confirm via email then log in',
+    auth_2fa_prompt:'Enter the 6-digit code from your authenticator app:',
+    auth_2fa_required:'Two-factor required to log in',auth_2fa_wrong:'Wrong code — try again',
+    auth_forgot:'Enter your email and we\'ll send a reset link:',
+    auth_reset_sent:'Reset email sent to %s',
+    auth_new_password:'Choose New Password',
+    auth_reset_prompt:'You followed the reset link. Enter a new password below.',
+    auth_password_updated:'Password updated',
+    auth_logout_confirm:'Log out? Your local data on this device will be cleared (it remains in the cloud).',
+    auth_delete_confirm:'Permanently delete your account and all cloud data? This cannot be undone.',
+    auth_delete_confirm2:'Are you sure? All cloud data will be removed and you will be logged out. (Your local device data remains.)',
+    auth_deleted_full:'Account deleted',auth_deleted_partial:'Cloud data deleted & logged out',
+    /* App Lock */
+    lock_prompt:'Choose a passcode to lock the app (min 4 characters):',
+    lock_too_short:'Code is too short',lock_confirm:'Confirm passcode:',
+    lock_mismatch:'Did not match',lock_activated:'App lock activated — data encrypted',
+    lock_disable_confirm:'Disable app lock? Data will be stored unencrypted on device.',
+    lock_disabled:'App lock disabled',lock_new:'New code (min 4 characters):',
+    lock_confirm_new:'Confirm new code:',lock_too_short2:'Too short',lock_updated:'Code updated',
+    lock_title:'Enter your code to unlock.',lock_placeholder:'••••••',
+    lock_unlock:'Unlock',lock_wrong:'Wrong code — try again.',
+    /* Cloud sync */
+    cloud_not_configured:'Supabase not configured',cloud_not_logged_in:'Not logged in',
+    cloud_no_data:'No data',cloud_sync_failed:'Sync failed: %s',
+    cloud_synced:'Synced to cloud',cloud_pull_confirm:'Fetch data from cloud? This will REPLACE your current local data.',
+    cloud_pulled:'Fetched — reloading…',cloud_pull_empty:'No data in cloud',
+    cloud_pull_failed:'Failed: %s',cloud_sb_saved:'Supabase settings saved',
+    cloud_sb_load_fail:'Could not load Supabase library (network?)',
+    cloud_public_warn:'Could not sync public status (has Steg 3 SQL been run?):',
+    cloud_upload_login:'Log in to upload photos',
+    cloud_photo_too_big:'Image too large (max 8 MB)',
+    cloud_photo_not_image:'Only image files supported',
+    /* Public sharing */
+    share_prices_confirm:'Include your prices in the shared view?\n\nOK = prices shown to visitors\nCancel = prices hidden (recommended)',
+    share_now_public:'Collection is now public — share the link below',
+    share_now_private:'Collection is now private',
+    share_no_id:'Could not get your ID — log out and back in',
+    share_copied:'Link copied!',share_copy_failed:'Could not copy — %s',
+    share_loading:'Loading collection…',share_not_found:'Collection not found',
+    share_not_found_body:'Either the collection is not public or the link has expired.',
+    share_back:'Back',share_parse_error:'Could not read collection',
+    share_encrypted:'Collection is encrypted',
+    share_encrypted_body:'The owner has app lock enabled — content cannot be shown publicly.',
+    share_banner:'You are viewing someone\'s public collection. Read-only — no changes are saved.',
+    share_empty:'Collection is empty',share_readonly:'Read-only view — %s items',
+    share_col_name:'Name',share_col_set:'Set',share_col_cat:'Category',
+    share_col_cond:'Condition',share_col_qty:'Qty',share_col_price:'Best Price',
+    /* Admin */
+    admin_title:'Admin',admin_loading:'Loading users…',admin_none:'No users found.',
+    admin_fetch_fail:'Could not fetch users: %s',
+    admin_ban_confirm:'Ban this user? They cannot log in until unbanned.',
+    admin_unban_confirm:'Unban this user?',
+    admin_banned:'User banned',admin_unbanned:'User unbanned',
+    admin_delete_confirm:'Permanently delete this account? Account + cloud data removed and cannot be undone.',
+    admin_delete_confirm2:'Are you sure? This cannot be undone.',
+    admin_deleted:'User deleted',
+    admin_login_first:'Log in first',
+    /* 2FA */
+    mfa_checking:'Checking two-factor…',mfa_error:'Could not read 2FA status.',
+    mfa_active:'Two-factor active',mfa_enable:'Enable two-factor (authenticator)',
+    mfa_setup_title:'Enable Two-Factor',mfa_enter_code:'Enter code from app',
+    mfa_activated:'Two-factor activated',
+    mfa_disable_confirm:'Disable two-factor? Account will only be protected by password.',
+    mfa_disabled:'Two-factor disabled',
+    /* Backup / data */
+    backup_exported:'Backup exported',backup_import_invalid:'Invalid file: %s',
+    backup_import_not_cardtrack:'File does not appear to be a CardTrack backup',
+    backup_import_confirm:'Replace current data with imported backup?',
+    backup_imported:'Data imported',
+    clear_confirm:'Clear collection? All items and watches removed (sites and settings kept).',
+    clear_done:'Collection is now empty',clear_sync_hint:' — press "Sync Now" under Settings',
+    reset_confirm:'Reset EVERYTHING? All data, settings and sites will be wiped.',
+    reset_done:'Everything reset',
+    save_error:'Could not save locally — %s',
+    /* Currency / rates */
+    rates_saved:'Exchange rates saved',rates_fetching:'Fetching rates…',
+    rates_fetched:'Live rates fetched (ECB via frankfurter.app)',
+    rates_fail:'Could not fetch live rates',
+    import_saved:'Import settings saved',api_saved:'API settings saved',
+    base_changed:'Base currency: %s',
+    /* Auto-sync / fetch-all */
+    fetch_all_start:'Starting price fetch for %s items…',
+    fetch_all_progress:'Fetching %s (%s of %s items done)',
+    fetch_all_no_change:'All prices checked — no changes',
+    /* Misc */
+    no_catalog_provider:'No automatic catalog for this category yet — enter name manually.',
+    sealed:'sealed',
+    extra_fields:'Extra fields — %s',
+    auto_sync_on:'on',auto_sync_off:'off',
+    auto_sync_toast:'Auto-sync %s',
+    supabase_not_configured:'Enter Supabase URL and key under Settings first',
+    local_has_data_confirm:'No cloud data found for this account.\n\nOK = upload your CURRENT local data to the account.\nCancel = start with an EMPTY collection.',
+  }
+};
+/* t(key, ...args) — plockar sträng från aktivt språk, ersätter %s med args i ordning */
+function t(key){
+  const lang=(state&&state.settings&&state.settings.lang)||'sv';
+  const dict=LANG[lang]||LANG.sv;
+  let s=dict[key]||LANG.sv[key]||key;
+  for(let i=1;i<arguments.length;i++)s=s.replace('%s',arguments[i]);
+  return s;
+}
+function setLang(l){state.settings.lang=l;save();rerenderCurrent();}
+
 /* ---------- Utilities ---------- */
 const $=s=>document.querySelector(s);
 const $$=s=>Array.from(document.querySelectorAll(s));
@@ -594,8 +1104,8 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.14';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
-const APP_VERSION_DATE='2026-06-23';
+const APP_VERSION='1.6.15';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION_DATE='2026-06-25';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
 let state=null;
@@ -826,21 +1336,21 @@ function scoreLabel(s){return s>=80?'Utmärkt köp':s>=65?'Bra köp':s>=45?'Okej
    ============================================================ */
 const NAV=[
   {grp:'Översikt'},
-  {id:'dashboard',ic:'grid',label:'Dashboard',title:'Dashboard',sub:'Översikt över din samling och marknad'},
-  {id:'portfolio',ic:'trending',label:'Portfölj',title:'Portfölj',sub:'Värdeutveckling, vinst/förlust och kategorianalys'},
-  {id:'analysis',ic:'chart',label:'Prisanalys',title:'Prisanalys',sub:'Prishistorik, marknadstrender och köpfönster'},
+  {id:'dashboard',ic:'grid',label:t('nav_dashboard'),title:t('nav_dashboard'),sub:t('dash_portfolio')},
+  {id:'portfolio',ic:'trending',label:t('nav_collection'),title:t('nav_collection'),sub:t('dash_profit')},
+  {id:'analysis',ic:'chart',label:t('hist_title'),title:t('hist_title'),sub:t('hist_title')},
   {grp:'Samling'},
   {id:'collection',ic:'layers',label:'Min samling',title:'Min samling',sub:'Hela ditt inventarie med kraftfulla filter',badge:'coll'},
-  {id:'watchlist',ic:'eye',label:'Köplista',title:'Köplista & bevakningar',sub:'Wishlist med målpriser och köp-poäng',badge:'watch'},
+  {id:'watchlist',ic:'eye',label:t('nav_watchlist'),title:t('nav_watchlist'),sub:t('nav_watchlist'),badge:'watch'},
   {id:'recommend',ic:'cart',label:'Köprekommendation',title:'Smart köprekommendation',sub:'Välj objekt — få optimal kombination inkl. frakt'},
   {grp:'Marknad & verktyg'},
   {id:'ai',ic:'spark',label:'AI-skanner',title:'AI-skanner',sub:'Prisskanning & analys via Claude API'},
   {id:'history',ic:'clock',label:'Prishistorik',title:'Prishistorik',sub:'Full logg över alla prisändringar'},
   {grp:'Konfiguration'},
-  {id:'sites',ic:'store',label:'Sajter',title:'Sajter',sub:'Hantera kortbutiker, frakt och trösklar',badge:'sites'},
-  {id:'categories',ic:'tag',label:'Kategorier',title:'Kategorier',sub:'Hantera TCG-typer och färgkodning'},
-  {id:'settings',ic:'cog',label:'Inställningar',title:'Inställningar',sub:'Valutor, växelkurser, API-nycklar, backup'},
-  {id:'admin',ic:'shield',label:'Admin',title:'Användarhantering',sub:'Hantera alla konton — kräver admin-behörighet',admin:true},
+  {id:'sites',ic:'store',label:t('nav_sites'),title:t('nav_sites'),sub:t('nav_sites'),badge:'sites'},
+  {id:'categories',ic:'tag',label:t('nav_categories'),title:t('nav_categories'),sub:t('nav_categories')},
+  {id:'settings',ic:'cog',label:t('nav_settings'),title:t('nav_settings'),sub:t('nav_settings')},
+  {id:'admin',ic:'shield',label:t('nav_admin'),title:t('admin_title'),sub:t('admin_title'),admin:true},
   {id:'shared',ic:'eye',label:'',title:'Delad samling',sub:'Skrivskyddad vy',hidden:true}
 ];
 let currentPage='dashboard';
@@ -1367,7 +1877,7 @@ async function onPhotoPick(id,input){
   const it=itemById(id);if(!it)return;
   const files=Array.from(input.files||[]);input.value='';
   if(!files.length)return;
-  if(!photosReady()){toast('Logga in på molnet först','warn');return;}
+  if(!photosReady()){toast(t('cloud_upload_login'),'warn');return;}
   it.photos=it.photos||[];
   toast('Laddar upp '+files.length+' foto…','ok');
   let ok=0;
@@ -1492,7 +2002,7 @@ function removePhotoFromForm(id,idx){
 function itemForm(id){
   const it=id?itemById(id):null;
   const d=it||{cat:state.categories[0].id,type:PRODUCT_TYPES[0],condition:CONDITIONS[0],qty:1,buyCurrency:base(),buyDate:todayISO(),tags:[]};
-  let html='<div class="modal-head"><h3>'+(it?'Redigera objekt':'Lägg till objekt')+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+  let html='<div class="modal-head"><h3>'+(it?t('item_form_edit'):t('item_form_new'))+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
   +'<div class="modal-body"><form id="itemFormEl"><div class="form-grid">'
   +'<div class="fld full"><label style="display:flex;align-items:center;gap:8px">Namn <span class="req">*</span><button type="button" class="btn ghost sm" style="margin-left:auto;padding:5px 10px" onclick="scanStart(\'item\')">'+ic('camera')+'Skanna med kamera</button></label><div class="ta-wrap"><input name="name" id="taInput" autocomplete="off" required value="'+esc(d.name||'')+'" placeholder="Börja skriv kort- eller setnamn…"><div class="ta-results" id="taResults"></div></div><div class="cat-hint" id="taHint"></div><input type="file" id="scanCamInput" accept="image/*" capture="environment" style="display:none" onchange="onScanPick(this)"></div>'
   +'<div class="fld full"><div id="scanStatus" class="note-banner" style="display:none"></div></div>'
@@ -1513,7 +2023,7 @@ function itemForm(id){
   +'<div class="fld"><label>Valuta</label><select name="buyCurrency">'+curOptions(d.buyCurrency)+'</select></div>'
   +'<div class="fld"><label>Frakt vid köp (total)</label><input name="buyShipping" type="number" step="0.01" value="'+(d.buyShipping!=null?d.buyShipping:'')+'"></div>'
   +'<div class="fld"><label>Inköpsdatum</label><input name="buyDate" type="date" value="'+esc(d.buyDate||todayISO())+'"></div>'
-  +'<div class="fld"><label>Säljare</label><input name="seller" value="'+esc(d.seller||'')+'"></div>'
+  +'<div class="fld"><label>'+t('item_form_edit').replace('Redigera','Säljare')+': </label><input name="seller" value="'+esc(d.seller||'')+'"></div>'
   +'<div class="fld"><label>Taggar (komma)</label><input name="tags" value="'+esc((d.tags||[]).join(', '))+'" placeholder="investering, sealed"></div>'
   +'<div class="fld full"><label>Anteckningar</label><textarea name="notes" placeholder="Transaktion, skick, plan…">'+esc(d.notes||'')+'</textarea></div>'
   +'</form></div>'
@@ -1522,7 +2032,7 @@ function itemForm(id){
   initCatalog();
 }
 function saveItem(id){
-  const f=$('#itemFormEl');if(!f.name.value.trim()){toast('Namn krävs','err');return;}
+  const f=$('#itemFormEl');if(!f.name.value.trim()){toast(t('item_name_required'),'err');return;}
   const data={
     name:f.name.value.trim(),cat:f.cat.value,set:f.set.value.trim(),type:f.type.value,condition:f.condition.value,
     language:f.language?f.language.value:'en',
@@ -1540,7 +2050,7 @@ function saveItem(id){
   });
   if(hasExtra)data.extra=extra;
   if(id){const it=itemById(id);Object.assign(it,data);toast('Objekt uppdaterat','ok');}
-  else{state.items.push(Object.assign({id:uid(),prices:[]},data));toast('Objekt tillagt — lägg nu till priser','ok');}
+  else{state.items.push(Object.assign({id:uid(),prices:[]},data));toast(t('item_saved'),'ok');}
   save();closeModal();rerenderCurrent();
   if(currentPage!=='collection')navigate('collection');
 }
@@ -1577,7 +2087,7 @@ RENDERERS.watchlist=function(){
     + kpi('Förbeställningar',state.watch.filter(w=>w.preorder).length+'','<span class="dim">kommande releaser</span>','clock')
     +'</div>';
   if(!state.watch.length){
-    html+='<div class="card"><div class="empty"><div class="big">'+ic('eye')+'</div><h3>Köplistan är tom</h3><p>Lägg till objekt du vill köpa med ett målpris. CardTrack markerar när priset nås och beräknar en köp-poäng.</p><button class="btn primary" onclick="watchForm()">'+ic('plus')+'Ny bevakning</button></div></div>';
+    html+='<div class="card"><div class="empty"><div class="big">'+ic('eye')+'</div><h3>'+t('watch_empty_title')+'</h3><p>'+t('watch_empty_body')+'</p><button class="btn primary" onclick="watchForm()">'+ic('plus')+t('watch_add')+'</button></div></div>';
   }else{
     html+='<div class="table-wrap"><div class="table-scroll ct-scroll"><table class="ct-table"><thead><tr><th>Objekt</th><th>Kategori</th><th class="right">Målpris</th><th class="right">Bästa pris nu</th><th class="right">Diff</th><th>Köp-poäng</th><th>Status</th><th></th></tr></thead><tbody>';
     const q=(watchFilterQ||'').toLowerCase();
@@ -1626,7 +2136,7 @@ function watchForm(id){
   openModal(html);
 }
 function saveWatch(id){
-  const f=$('#watchFormEl');if(!f.name.value.trim()||f.targetPrice.value===''){toast('Namn och målpris krävs','err');return;}
+  const f=$('#watchFormEl');if(!f.name.value.trim()||f.targetPrice.value===''){toast(t('item_name_required'),'err');return;}
   const data={name:f.name.value.trim(),cat:f.cat.value,type:f.type.value,targetPrice:parseFloat(f.targetPrice.value),targetCurrency:f.targetCurrency.value,preorder:f.preorder.checked,notes:f.notes.value.trim()};
   if(id){Object.assign(state.watch.find(x=>x.id===id),data);toast('Bevakning uppdaterad','ok');}
   else{state.watch.push(Object.assign({id:uid(),prices:[]},data));toast('Bevakning tillagd','ok');}
@@ -1956,7 +2466,7 @@ async function aiAnalyze(){
   aiBusy=false;
 }
 async function aiAsk(){
-  if(aiBusy)return;const q=$('#aiPrompt').value.trim();if(!q){toast('Skriv en fråga','warn');return;}
+  if(aiBusy)return;const q=$('#aiPrompt').value.trim();if(!q){toast(t('ai_question'),'warn');return;}
   aiBusy=true;aiLoading();
   try{
     const txt=await callClaude([{role:'user',content:q}],'Du är en hjälpsam expert på samlarkort (Pokémon, Lorcana, MTG, sportkort m.m.) och marknadsvärdering. Svara på svenska, konkret och ärligt. Hitta aldrig på exakta butikspriser — resonera om marknaden.');
@@ -1988,7 +2498,7 @@ function downscaleImage(file,maxEdge){
       const durl=c.toDataURL('image/jpeg',0.85);
       res({base64:durl.slice(durl.indexOf(',')+1),media:'image/jpeg'});
     };
-    img.onerror=function(){URL.revokeObjectURL(url);rej(new Error('Kunde inte läsa bilden (format stöds ej?)'));};
+    img.onerror=function(){URL.revokeObjectURL(url);rej(new Error(t('scan_img_error')));};
     img.src=url;
   });
 }
@@ -2001,7 +2511,7 @@ function parseScanJSON(raw){
 function bestProductType(s){s=(s||'').toLowerCase();for(let i=0;i<PRODUCT_TYPES.length;i++){const p=PRODUCT_TYPES[i].toLowerCase();if(p.indexOf(s)>=0||s.indexOf(p)>=0)return PRODUCT_TYPES[i];}return null;}
 async function runScan(file){
   if(scanBusy)return;scanBusy=true;
-  scanBanner('<span class="spin">'+ic('refresh')+'</span><div>Läser texten på bilden… det kan ta 5–15 sekunder första gången (laddar OCR-motor).</div>','');
+  scanBanner('<span class="spin">'+ic('refresh')+'</span><div>'+t('scan_loading')+'</div>','');
   try{
     // Ladda Tesseract.js lazy (bara vid första skanningen)
     if(!window.Tesseract){
@@ -2016,14 +2526,14 @@ async function runScan(file){
     const im=await downscaleImage(file,1200);
     const blob=await(await fetch('data:image/jpeg;base64,'+im.base64)).blob();
     // Kör OCR – svenska + engelska för bäst täckning av kortnamn
-    scanBanner('<span class="spin">'+ic('refresh')+'</span><div>Analyserar text på kortet/boxen…</div>','');
+    scanBanner('<span class="spin">'+ic('refresh')+'</span><div>'+t('scan_analyzing')+'</div>','');
     const result=await Tesseract.recognize(blob,'eng+swe',{logger:function(){}});
     const raw=(result&&result.data&&result.data.text)||'';
     // Extrahera användbar text: rensa specialtecken, ta rader med minst 2 tecken
     const lines=raw.split('\n').map(function(l){return l.replace(/[^a-zA-ZåäöÅÄÖ0-9\s\-']/g,' ').replace(/\s+/g,' ').trim();}).filter(function(l){return l.length>=2;});
     const text=lines.join(' ');
     if(!text.trim()){
-      scanBanner(ic('alert')+'<div>Kunde inte läsa text från bilden. Tips: bättre ljus, håll kameran stilla, undvik reflektioner på holografiska kort.</div>','warn');
+      scanBanner(ic('alert')+'<div>'+t('scan_no_text')+'</div>','warn');
       scanBusy=false;return;
     }
     // Försök identifiera produkt-/korttyp ur texten
@@ -2049,7 +2559,7 @@ async function runScan(file){
       note:'Text läst med OCR. Kontrollera och justera namn/kategori. Välj rätt träff i listan nedan.'
     });
   }catch(e){
-    scanBanner(ic('alert')+'<div>Skanningen misslyckades: '+esc(e.message||'okänt fel')+'</div>','warn');
+    scanBanner(ic('alert')+'<div>'+t('scan_failed',esc(e.message||'?'))+'</div>','warn');
   }
   scanBusy=false;
 }
@@ -2064,11 +2574,11 @@ function applyScan(d){
   const nm=d.name||'';
   if(form.name)form.name.value=nm;
   const conf=d.confidence||'medium';
-  const pill=conf==='high'?'<span class="pill up">Hög säkerhet</span>':conf==='low'?'<span class="pill flat">Låg säkerhet — kontrollera</span>':'<span class="pill flat">Medel säkerhet</span>';
+  const pill=conf==='high'?'<span class="pill up">'+t('scan_confidence_high')+'</span>':conf==='low'?'<span class="pill flat">'+t('scan_confidence_low')+'</span>':'<span class="pill flat">'+t('scan_confidence_med')+'</span>';
   scanBanner(ic('spark')+'<div><b>'+esc(nm)+'</b> '+pill
     +(d.set?'<div class="dim" style="font-size:11.5px">'+esc(d.set)+(d.number?' · #'+esc(d.number):'')+(d.productType?' · '+esc(d.productType):'')+'</div>':'')
     +(d.note?'<div class="dim" style="font-size:11px;margin-top:3px">'+esc(d.note)+'</div>':'')
-    +(isItem?'<div class="dim" style="font-size:11px;margin-top:4px">Söker i katalogen — välj rätt träff nedan, eller justera fälten.</div>':'')+'</div>','');
+    +(isItem?'<div class="dim" style="font-size:11px;margin-top:4px">'+t('scan_search_hint')+'</div>':'')+'</div>','');
   if(isItem){const ti=$('#taInput');if(ti){ti.value=nm;ti.dispatchEvent(new Event('input',{bubbles:true}));}}
   scanBusy=false;
 }
@@ -2094,7 +2604,7 @@ RENDERERS.history=function(){
         +'<td><span class="pill '+(h.auto?'up':'flat')+'" style="font-size:9px">'+(h.auto?'AUTO':'MANUELL')+'</span></td></tr>';});
     html+='</tbody></table></div></div>';
     if(rows.length>300)html+='<div class="dim" style="font-size:12px;margin-top:8px">Visar senaste 300 av '+rows.length+'.</div>';
-  }else html+='<div class="card"><div class="empty"><div class="big">'+ic('clock')+'</div><h3>Ingen prishistorik</h3><p>Varje gång du uppdaterar ett pris loggas det här.</p></div></div>';
+  }else html+='<div class="card"><div class="empty"><div class="big">'+ic('clock')+'</div><h3>'+t('hist_empty')+'</h3><p>'+t('hist_empty_body')+'</p></div></div>';
   $('#page-history').innerHTML=html;
   const i=$('#hItem'),s=$('#hSite');
   if(i)i.onchange=e=>{histFilter.item=e.target.value;RENDERERS.history();};
@@ -2105,7 +2615,7 @@ RENDERERS.history=function(){
    PAGE: SAJTER
    ============================================================ */
 RENDERERS.sites=function(){
-  let html=sectionHead('Sajter','<button class="btn ghost sm" onclick="addDefaultSites()" title="Lägg till verifierade butiker (SE/EU/US) som saknas">'+ic('download')+'Lägg till standardsajter</button><button class="btn primary sm" onclick="siteForm()">'+ic('plus')+'Ny sajt</button>');
+  let html=sectionHead(t('nav_sites'),'<button class="btn ghost sm" onclick="addDefaultSites()" title="'+t('sites_add_defaults')+'">'+ic('download')+'Lägg till standardsajter</button><button class="btn primary sm" onclick="siteForm()">'+ic('plus')+'Ny sajt</button>');
   html+='<div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>Sajt</th><th>Land</th><th>Valuta</th><th class="right">Frakt</th><th class="right">Fri frakt över</th><th>Betyg</th><th class="right">Åtgärder</th></tr></thead><tbody>';
   state.sites.forEach(s=>{
     const used=state.items.concat(state.watch).reduce((n,o)=>n+((o.prices||[]).some(p=>p.siteId===s.id&&p.price!=null)?1:0),0);
@@ -2152,25 +2662,25 @@ function siteForm(id){
   openModal(html);
 }
 function saveSite(id){
-  const f=$('#siteFormEl');if(!f.name.value.trim()){toast('Namn krävs','err');return;}
+  const f=$('#siteFormEl');if(!f.name.value.trim()){toast(t('item_name_required'),'err');return;}
   const data={name:f.name.value.trim(),icon:f.icon.value.trim(),url:f.url.value.trim(),currency:f.currency.value,country:f.country.value.trim().toUpperCase(),
     region:f.region.value,rating:parseInt(f.rating.value)||0,defaultShipping:parseFloat(f.defaultShipping.value)||0,
     freeShippingThreshold:parseFloat(f.freeShippingThreshold.value)||0,color:f.color.value,
     discountCodes:f.discountCodes.value.split(',').map(x=>x.trim()).filter(Boolean),memberBenefits:f.memberBenefits.value.trim(),notes:f.notes.value.trim()};
-  if(id){Object.assign(siteById(id),data);toast('Sajt uppdaterad','ok');}
+  if(id){Object.assign(siteById(id),data);toast(t('sites_updated'),'ok');}
   else{state.sites.push(Object.assign({id:uid()},data));toast('Sajt tillagd','ok');}
   save();closeModal();rerenderCurrent();if(currentPage!=='sites')navigate('sites');
 }
 function deleteSite(id,fromForm){
   const s=siteById(id);if(!s)return;
-  if(!confirm('Ta bort sajten "'+s.name+'"? Priser kopplade till den tas också bort.'))return;
+  if(!confirm(t('sites_delete_confirm',s.name)))return;
   // kom ihåg att användaren tagit bort denna — annars läggs standardsajter tillbaka vid nästa start
   const u=(s.url||'').toLowerCase().replace(/\/$/,'');
   if(u){state.settings.removedDefaultSites=state.settings.removedDefaultSites||[];if(!state.settings.removedDefaultSites.includes(u))state.settings.removedDefaultSites.push(u);}
   state.sites=state.sites.filter(x=>x.id!==id);
   state.items.concat(state.watch).forEach(o=>{o.prices=(o.prices||[]).filter(p=>p.siteId!==id);});
   state.priceHistory=state.priceHistory.filter(h=>h.siteId!==id);
-  save();if(fromForm)closeModal();rerenderCurrent();toast('Sajt borttagen','warn');
+  save();if(fromForm)closeModal();rerenderCurrent();toast(t('sites_deleted'),'warn');
 }
 
 /* ============================================================
@@ -2200,18 +2710,18 @@ function catForm(id){
   openModal(html);
 }
 function saveCat(id){
-  const f=$('#catFormEl');if(!f.name.value.trim()){toast('Namn krävs','err');return;}
+  const f=$('#catFormEl');if(!f.name.value.trim()){toast(t('item_name_required'),'err');return;}
   const data={name:f.name.value.trim(),color:f.color.value};
-  if(id){Object.assign(catById(id),data);toast('Kategori uppdaterad','ok');}
-  else{state.categories.push(Object.assign({id:uid()},data));toast('Kategori tillagd','ok');}
+  if(id){Object.assign(catById(id),data);toast(t('cats_updated'),'ok');}
+  else{state.categories.push(Object.assign({id:uid()},data));toast(t('cats_added'),'ok');}
   save();closeModal();rerenderCurrent();if(currentPage!=='categories')navigate('categories');
 }
 function deleteCat(id,fromForm){
   const c=catById(id);if(!c)return;
   const cnt=state.items.filter(i=>i.cat===id).length;
-  if(!confirm('Ta bort kategorin "'+c.name+'"?'+(cnt?' '+cnt+' objekt blir utan kategori.':'')))return;
+  if(!confirm(t('cats_delete_confirm',c.name)+(cnt?t('cats_delete_has_items',cnt):'')))return;
   state.categories=state.categories.filter(x=>x.id!==id);
-  save();if(fromForm)closeModal();rerenderCurrent();toast('Kategori borttagen','warn');
+  save();if(fromForm)closeModal();rerenderCurrent();toast(t('cats_deleted'),'warn');
 }
 
 /* ============================================================
@@ -2219,7 +2729,7 @@ function deleteCat(id,fromForm){
    ============================================================ */
 RENDERERS.settings=function(){
   const s=state.settings;
-  let html=sectionHead('Inställningar','<span class="dim" style="font-size:11.5px">CardTrack v'+APP_VERSION+' &middot; '+APP_VERSION_DATE+'</span>');
+  let html=sectionHead(t('nav_settings'),'<span class="dim" style="font-size:11.5px">CardTrack v'+APP_VERSION+' &middot; '+APP_VERSION_DATE+'</span>');
 
   // Basvaluta + växelkurser
   html+='<div class="card"><b style="font-family:var(--display)">Valuta & växelkurser</b>'
@@ -2285,7 +2795,7 @@ RENDERERS.settings=function(){
             +'<input type="text" readonly value="'+esc(shareLink())+'" style="flex:1;min-width:0;font-size:11px;font-family:monospace;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text)">'
             +'<button class="btn ghost sm" onclick="copyShareLink()">'+ic('copy')+'Kopiera länk</button>'
             +'</div>'
-            +'<div class="dim" style="font-size:11px;margin-top:6px">Alla inloggade användare med länken kan se dina kort (utan priser).</div>'
+            +'<div class="dim" style="font-size:11px;margin-top:6px">Alla med länken kan se dina kort'+(s.publicPrices?' (inklusive priser)':' (utan priser)')+'.</div>'
           :'<div class="dim" style="font-size:11px;margin-top:6px">Aktivera för att dela din samling med andra via en länk.</div>')
         +'</div>'
         +'<div style="border-top:1px solid var(--border-soft);padding-top:12px;margin-top:12px"><b style="font-size:12.5px">Tvåfaktor (2FA)</b><div id="mfaBox" style="margin-top:8px"></div></div>'
@@ -2301,20 +2811,25 @@ RENDERERS.settings=function(){
   // Backup
   html+='<div class="card" style="margin-top:16px"><b style="font-family:var(--display)">Säkerhetskopia & data</b>'
     +'<div class="dim" style="font-size:12px;margin:4px 0 12px">All data lagras lokalt i din webbläsare. Exportera regelbundet som backup.</div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" onclick="exportData()">'+ic('download')+'Exportera JSON</button>'
-    +'<button class="btn ghost sm" onclick="importPrompt()">'+ic('upload')+'Importera JSON</button>'
-    +'<button class="btn ghost sm" onclick="toggleTheme()">'+ic(s.theme==='dark'?'sun':'moon')+'Växla tema</button>'
-    +'<button class="btn danger sm" onclick="clearCollection()">'+ic('trash')+'Töm samlingen</button>'
-    +'<button class="btn danger sm" onclick="resetAll()">'+ic('trash')+'Återställ allt</button></div></div>';
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" onclick="exportData()">'+ic('download')+t('sett_export')+'</button>'
+    +'<button class="btn ghost sm" onclick="importPrompt()">'+ic('upload')+t('sett_import')+'</button>'
+    +'<button class="btn ghost sm" onclick="toggleTheme()">'+ic(s.theme==='dark'?'sun':'moon')+t(s.theme==='dark'?'sett_theme_dark':'sett_theme_light')+'</button>'
+    +'<button class="btn danger sm" onclick="clearCollection()">'+ic('trash')+t('sett_clear')+'</button>'
+    +'<button class="btn danger sm" onclick="resetAll()">'+ic('trash')+t('sett_reset')+'</button></div></div>';
+  html+='<div class="card" style="margin-top:16px"><b style="font-family:var(--display)">'+t('sett_lang')+'</b>'
+    +'<div style="display:flex;gap:10px;margin-top:10px">'
+    +'<button class="btn '+((state.settings.lang||'sv')==='sv'?'primary':'ghost')+' sm" onclick="setLang(\'sv\')">🇸🇪 Svenska</button>'
+    +'<button class="btn '+((state.settings.lang||'sv')==='en'?'primary':'ghost')+' sm" onclick="setLang(\'en\')">🇬🇧 English</button>'
+    +'</div></div>';
   $('#page-settings').innerHTML=html;
   if(loggedIn())setTimeout(mfaRenderBox,0);
 };
-function saveRates(){$$('#page-settings [data-rate]').forEach(i=>{if(!i.disabled)state.settings.rates[i.dataset.rate]=parseFloat(i.value)||1;});state.settings.rates[state.settings.baseCurrency]=1;save();rerenderCurrent();toast('Växelkurser sparade','ok');}
-function saveImport(){state.settings.vatRate=parseFloat($('#setVat').value)||0;state.settings.customsFee=parseFloat($('#setCustoms').value)||0;save();rerenderCurrent();toast('Importinställningar sparade','ok');}
-function saveApi(){state.settings.apiKey=$('#setKey').value.trim();state.settings.aiModel=$('#setModel').value;state.settings.serverUrl=$('#setServer').value.trim();save();checkServer();toast('API-inställningar sparade','ok');}
-function onBaseChange(){const v=$('#setBase').value;state.settings.baseCurrency=v;state.settings.rates[v]=1;save();rerenderCurrent();toast('Basvaluta: '+v,'ok');}
+function saveRates(){$$('#page-settings [data-rate]').forEach(i=>{if(!i.disabled)state.settings.rates[i.dataset.rate]=parseFloat(i.value)||1;});state.settings.rates[state.settings.baseCurrency]=1;save();rerenderCurrent();toast(t('rates_saved'),'ok');}
+function saveImport(){state.settings.vatRate=parseFloat($('#setVat').value)||0;state.settings.customsFee=parseFloat($('#setCustoms').value)||0;save();rerenderCurrent();toast(t('import_saved'),'ok');}
+function saveApi(){state.settings.apiKey=$('#setKey').value.trim();state.settings.aiModel=$('#setModel').value;state.settings.serverUrl=$('#setServer').value.trim();save();checkServer();toast(t('api_saved'),'ok');}
+function onBaseChange(){const v=$('#setBase').value;state.settings.baseCurrency=v;state.settings.rates[v]=1;save();rerenderCurrent();toast(t('base_changed',v),'ok');}
 async function fetchRates(silent){
-  if(!silent)toast('Hämtar kurser…','ok');
+  if(!silent)toast(t('rates_fetching'),'ok');
   const b=state.settings.baseCurrency;
   const syms=CURRENCIES.filter(c=>c!==b).join(',');
   try{
@@ -2326,9 +2841,9 @@ async function fetchRates(silent){
       else if(d.rates[c]){state.settings.rates[c]=Math.round(1/d.rates[c]*10000)/10000;}
     });
     state.settings.ratesUpdated=todayISO();save();
-    if(!silent){rerenderCurrent();toast('Dagskurser hämtade (ECB via frankfurter.app)','ok');}
+    if(!silent){rerenderCurrent();toast(t('rates_fetched'),'ok');}
   }catch(e){
-    if(!silent)toast('Kunde inte hämta kurser — kontrollera nätverket','warn');
+    if(!silent)toast(t('rates_fail'),'warn');
   }
 }
 async function autoUpdateRates(){
@@ -2337,19 +2852,19 @@ async function autoUpdateRates(){
   await fetchRates(true);
 }
 async function resetAll(){
-  if(!confirm('Återställ ALLT? Samlingen töms och sajter/kategorier återställs till standard (verifierade äkta sajter). Detta synkas till molnet.'))return;
-  if(!confirm('Är du helt säker? Detta går inte att ångra.'))return;
+  if(!confirm(t('reset_confirm')))return;
+  if(!confirm(t('auth_delete_confirm2')))return;
   appLock={enabled:false,key:null,salt:null,iter:210000};
   localStorage.removeItem(STORAGE_KEY);
   state=freshState();save();applyTheme();renderNav();updateBadges();navigate('dashboard');updateTicker();
-  await pushNowWithReceipt('Återställt — tom samling med standardsajter');
+  await pushNowWithReceipt(t('reset_done'));
 }
 async function clearCollection(){
-  if(!confirm('Töm samlingen? Alla objekt, bevakningar, prishistorik och grafer raderas — men dina sajter, kategorier och inställningar behålls. Synkas till molnet.'))return;
+  if(!confirm(t('clear_confirm')))return;
   if(!confirm('Är du helt säker? Detta går inte att ångra.'))return;
   state.items=[];state.watch=[];state.priceHistory=[];state.snapshots=[];
   save();rerenderCurrent();updateBadges();updateTicker();
-  await pushNowWithReceipt('Samlingen är nu tom');
+  await pushNowWithReceipt(t('clear_done')+(!loggedIn()?'':t('clear_sync_hint')));
 }
 /* Synka direkt (utan 1,8 s-debounce) så raderingar inte överlever i molnet om
    sidan stängs/laddas om direkt efter — det var så raderad data "kom tillbaka". */
@@ -2357,7 +2872,7 @@ async function pushNowWithReceipt(msg){
   if(!loggedIn()){toast(msg+' (lokalt — ej inloggad, inget moln att synka)','warn');return;}
   if(_cloudPushTimer){clearTimeout(_cloudPushTimer);_cloudPushTimer=null;}
   try{await cloudPush();toast(msg+' — synkad till molnet','ok');}
-  catch(e){toast(msg+' lokalt, MEN molnsynken misslyckades: '+e.message+' — tryck "Synka nu" under Inställningar','err');}
+  catch(e){toast(msg+' '+t('cloud_sync_failed',e.message),'err');}
 }
 function mergeDefaultSites(quiet){
   /* Lägger till alla standardsajter som saknas — rör INTE befintliga sajter eller samlingen.
@@ -2382,18 +2897,18 @@ function exportData(){
   const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='cardtrack-backup-'+todayISO()+'.json';a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup exporterad','ok');
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(t('backup_exported'),'ok');
 }
 function importPrompt(){
   const inp=document.createElement('input');inp.type='file';inp.accept='application/json,.json';
   inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
-    r.onload=()=>{try{const d=JSON.parse(r.result);importData(d);}catch(err){toast('Ogiltig fil: '+err.message,'err');}};
+    r.onload=()=>{try{const d=JSON.parse(r.result);importData(d);}catch(err){toast(t('backup_import_invalid',err.message),'err');}};
     r.readAsText(f);};
   inp.click();
 }
 function importData(d){
-  if(!d||!d.items||!d.sites){toast('Filen verkar inte vara en CardTrack-backup','err');return;}
-  if(!confirm('Ersätt nuvarande data med importerad backup?'))return;
+  if(!d||!d.items||!d.sites){toast(t('backup_import_not_cardtrack'),'err');return;}
+  if(!confirm(t('backup_import_confirm')))return;
   state=Object.assign({categories:[],sites:[],items:[],watch:[],priceHistory:[],snapshots:[],savedViews:[],settings:defaultSettings()},d);
   state.settings=Object.assign(defaultSettings(),d.settings||{});
   save();applyTheme();renderNav();updateBadges();navigate('dashboard');updateTicker();toast('Backup importerad','ok');
@@ -2417,28 +2932,28 @@ async function persistEncrypted(){
   }catch(e){toast('Krypterad sparning misslyckades — '+e.message,'err');}
 }
 async function enableLock(){
-  const p1=prompt('Välj en kod för att låsa appen (minst 4 tecken):');if(p1==null)return;
-  if(p1.length<4){toast('Koden är för kort','err');return;}
-  const p2=prompt('Bekräfta koden:');if(p2!==p1){toast('Koderna matchade inte','err');return;}
+  const p1=prompt(t('lock_prompt'));if(p1==null)return;
+  if(p1.length<4){toast(t('lock_too_short'),'err');return;}
+  const p2=prompt(t('lock_confirm'));if(p2!==p1){toast(t('lock_mismatch'),'err');return;}
   const salt=crypto.getRandomValues(new Uint8Array(16));
   appLock.salt=bufToB64(salt.buffer);appLock.iter=210000;
   appLock.key=await deriveKey(p1,salt.buffer,appLock.iter);appLock.enabled=true;
-  await persistEncrypted();rerenderCurrent();toast('Applås aktiverat — data krypterad','ok');
+  await persistEncrypted();rerenderCurrent();toast(t('lock_activated'),'ok');
 }
 async function disableLock(){
   if(!appLock.key)return;
-  if(!confirm('Stäng av applåset? Data sparas då okrypterat på enheten.'))return;
+  if(!confirm(t('lock_disable_confirm')))return;
   appLock={enabled:false,key:null,salt:null,iter:210000};
   localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
-  rerenderCurrent();toast('Applås avstängt','warn');
+  rerenderCurrent();toast(t('lock_disabled'),'warn');
 }
 async function changePasscode(){
   if(!appLock.key)return;
-  const p1=prompt('Ny kod (minst 4 tecken):');if(p1==null)return;if(p1.length<4){toast('För kort','err');return;}
-  const p2=prompt('Bekräfta ny kod:');if(p2!==p1){toast('Matchade inte','err');return;}
+  const p1=prompt(t('lock_new'));if(p1==null)return;if(p1.length<4){toast(t('lock_too_short2'),'err');return;}
+  const p2=prompt(t('lock_confirm_new'));if(p2!==p1){toast(t('lock_mismatch'),'err');return;}
   const salt=crypto.getRandomValues(new Uint8Array(16));
   appLock.salt=bufToB64(salt.buffer);appLock.key=await deriveKey(p1,salt.buffer,appLock.iter);
-  await persistEncrypted();toast('Kod uppdaterad','ok');
+  await persistEncrypted();toast(t('lock_updated'),'ok');
 }
 function showLockScreen(meta){
   return new Promise(resolve=>{
@@ -2455,7 +2970,7 @@ function showLockScreen(meta){
         appLock={enabled:true,key:key,salt:meta.salt,iter:meta.iter};
         scr.classList.remove('open');inp.value='';
         resolve(obj);
-      }catch(e){err.textContent='Fel kod — försök igen.';inp.value='';inp.focus();btn.disabled=false;}
+      }catch(e){err.textContent=t('lock_wrong');inp.value='';inp.focus();btn.disabled=false;}
     };
     btn.onclick=tryUnlock;
     inp.onkeydown=e=>{if(e.key==='Enter')tryUnlock();};
@@ -2471,7 +2986,7 @@ async function init(){
   console.log('CardTrack v'+APP_VERSION+' ('+APP_VERSION_DATE+')');
   // injicera ikoner i statiska topbar-knappar
   const mt=$('.mtoggle');if(mt)mt.innerHTML=ic('menu');
-  const addBtn=document.querySelector('.topbar-actions .primary');if(addBtn)addBtn.innerHTML=ic('plus')+'<span class="nowrap">Lägg till</span>';
+  const addBtn=document.querySelector('.topbar-actions .primary');if(addBtn)addBtn.innerHTML=ic('plus')+'<span class="nowrap">'+t('topbar_add')+'</span>';
   $('#scrim')&&($('#scrim').onclick=()=>toggleSidebar(false));
 
   let loaded=load();
@@ -2561,7 +3076,7 @@ function renderGate(mode){
 function getSB(){
   if(sbClient)return sbClient;
   if(!supabaseReady())return null;
-  if(!window.supabase||!window.supabase.createClient){toast('Supabase-biblioteket kunde inte laddas (nät?)','err');return null;}
+  if(!window.supabase||!window.supabase.createClient){toast(t('cloud_sb_load_fail'),'err');return null;}
   sbClient=window.supabase.createClient(state.settings.supabaseUrl.trim().replace(/\/$/,''),state.settings.supabaseKey.trim());
   return sbClient;
 }
@@ -2590,14 +3105,32 @@ function scheduleCloudPush(){
   _cloudPushTimer=setTimeout(()=>{cloudPush().catch(e=>console.warn('Synk misslyckades:',e.message));},1800);
 }
 async function cloudPush(){
-  const sb=getSB();if(!sb)throw new Error('Supabase ej konfigurerat');
-  const uid2=await sbUserId();if(!uid2)throw new Error('Inte inloggad');
-  const blob=localStorage.getItem(STORAGE_KEY);if(!blob)throw new Error('Inget data');
+  const sb=getSB();if(!sb)throw new Error(t('cloud_not_configured'));
+  const uid2=await sbUserId();if(!uid2)throw new Error(t('cloud_not_logged_in'));
+  const blob=localStorage.getItem(STORAGE_KEY);if(!blob)throw new Error(t('cloud_no_data'));
+  // Alltid full data i data-kolumnen (cloudPull hämtar härifrån — priserna är aldrig borta)
   const {error}=await sb.from('collections').upsert({user_id:uid2,data:blob,updated_at:new Date().toISOString()});
   if(error)throw new Error(error.message);
-  // Synka public-status separat (kräver Steg 3-SQL: public-kolumn + RLS-policy)
-  const up=await sb.from('collections').update({public:!!(state.settings&&state.settings.publicCollection)}).eq('user_id',uid2);
-  if(up.error)console.warn('Kunde inte synka publik-status (har Steg 3-SQL körts?):',up.error.message);
+  // Synka public-status + public_data (strippat om publicPrices=false)
+  const isPublic=!!(state.settings&&state.settings.publicCollection);
+  let publicData=null;
+  if(isPublic){
+    try{
+      const obj=JSON.parse(blob);
+      const withPrices=!!(state.settings&&state.settings.publicPrices);
+      const stripped=Object.assign({},obj,{
+        items:(obj.items||[]).map(function(it){
+          return withPrices?it:Object.assign({},it,{prices:[]});
+        })
+      });
+      publicData=JSON.stringify(stripped);
+    }catch(e){publicData=blob;}
+  }
+  const up=await sb.from('collections').update({
+    public:isPublic,
+    public_data:publicData
+  }).eq('user_id',uid2);
+  if(up.error)console.warn(t('cloud_public_warn'),up.error.message);
   session.lastSync=new Date().toISOString();saveSession();
 }
 async function cloudPull(){
@@ -2618,9 +3151,9 @@ const MAX_PHOTO_BYTES=8*1024*1024;
 function photosReady(){return loggedIn();}
 async function uploadPhoto(itemId,file){
   const sb=getSB();if(!sb)throw new Error('Supabase ej konfigurerat');
-  const uid2=await sbUserId();if(!uid2)throw new Error('Logga in för att ladda upp foton');
-  if(file.size>MAX_PHOTO_BYTES)throw new Error('Bilden är för stor (max 8 MB)');
-  if(!/^image\//.test(file.type))throw new Error('Endast bildfiler stöds');
+  const uid2=await sbUserId();if(!uid2)throw new Error(t('cloud_upload_login'));
+  if(file.size>MAX_PHOTO_BYTES)throw new Error(t('cloud_photo_too_big'));
+  if(!/^image\//.test(file.type))throw new Error(t('cloud_photo_not_image'));
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
   const path=uid2+'/'+itemId+'/'+uid()+'.'+ext;
   const {error}=await sb.storage.from(PHOTO_BUCKET).upload(path,file,{cacheControl:'3600',contentType:file.type,upsert:false});
@@ -2654,28 +3187,28 @@ function closeViewer(){
   setTimeout(()=>{const i=$('#imgviewerImg');if(i&&!$('#imgviewer').classList.contains('open'))i.src='';},220);
 }
 
-async function manualSync(){try{await cloudPush();toast('Synkad till molnet','ok');rerenderCurrent();}catch(e){toast('Synk misslyckades: '+e.message,'err');}}async function manualPull(){
-  if(!confirm('Hämta data från molnet? Detta ERSÄTTER din nuvarande lokala data.'))return;
-  try{const blob=await cloudPull();if(!blob){toast('Inget data i molnet','warn');return;}
-    localStorage.setItem(STORAGE_KEY,blob);toast('Hämtat — laddar om…','ok');setTimeout(()=>location.reload(),700);
-  }catch(e){toast('Misslyckades: '+e.message,'err');}
+async function manualSync(){try{await cloudPush();toast(t('cloud_synced'),'ok');rerenderCurrent();}catch(e){toast(t('cloud_sync_failed',e.message),'err');}}async function manualPull(){
+  if(!confirm(t('cloud_pull_confirm')))return;
+  try{const blob=await cloudPull();if(!blob){toast(t('cloud_pull_empty'),'warn');return;}
+    localStorage.setItem(STORAGE_KEY,blob);toast(t('cloud_pulled'),'ok');setTimeout(()=>location.reload(),700);
+  }catch(e){toast(t('cloud_pull_failed',e.message),'err');}
 }
 function saveSupabaseConfig(){
   state.settings.supabaseUrl=$('#sbUrl').value.trim();
   state.settings.supabaseKey=$('#sbKey').value.trim();
   sbClient=null;save();saveAppConfig();
   initSupabase().then(()=>rerenderCurrent());
-  toast('Supabase-inställningar sparade','ok');
+  toast(t('cloud_sb_saved'),'ok');
 }
 async function logout(){
-  if(!confirm('Logga ut? Din lokala data på den här enheten rensas (den finns kvar i molnet).'))return;
+  if(!confirm(t('auth_logout_confirm')))return;
   const sb=getSB();if(sb)try{await sb.auth.signOut();}catch(e){}
   session=null;saveSession();_isAdmin=false;
   wipeLocalData();                 // radera lokal samling (behåller anslutningskonfig)
   location.reload();               // → init → spärr (tom vy)
 }
 function authModal(mode){
-  if(!supabaseReady()){toast('Ange Supabase-URL och nyckel under Inställningar först','warn');navigate('settings');return;}
+  if(!supabaseReady()){toast(t('supabase_not_configured'),'warn');navigate('settings');return;}
   const isReg=mode==='register';
   const html='<div class="modal-head"><h3>'+(isReg?'Registrera konto':'Logga in')+'</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
     +'<div class="modal-body"><div class="note-banner">'+ic('alert')+'<div>Inloggning via <b>Supabase Auth</b> — lösenord hanteras säkert av Supabase. Aktivera applås under Säkerhet för E2E-kryptering av molndatan.</div></div>'
@@ -2691,14 +3224,15 @@ function authModal(mode){
 async function doAuth(isReg){
   const f=$('#gateForm')||$('#authForm');const err=$('#authErr');if(err)err.textContent='';
   const email=(f.email.value||'').trim().toLowerCase();const password=f.password.value;
-  if(!email||!password){if(err)err.textContent='Fyll i e-post och lösenord';return;}
+  if(!email||!password){if(err)err.textContent=t('auth_fill');return;}
   const sb=getSB();if(!sb){if(err)err.textContent='Supabase ej konfigurerat';return;}
   try{
     if(isReg){
       const {data,error}=await sb.auth.signUp({email:email,password:password});
       if(error)throw new Error(error.message);
-      if(!data.session){closeModal();toast('Konto skapat — bekräfta via mejlet och logga sedan in','ok');return;}
-      session={email:email,autoSync:true,lastSync:null};saveSession();
+      if(!data.session){closeModal();toast(t('auth_registered'),'ok');return;}
+      const uid0=data.session&&data.session.user?data.session.user.id:await sbUserId();
+      session={email:email,userId:uid0,autoSync:true,lastSync:null};saveSession();
     }else{
       const {error}=await sb.auth.signInWithPassword({email:email,password:password});
       if(error)throw new Error(error.message);
@@ -2706,14 +3240,15 @@ async function doAuth(isReg){
       const {data:lf}=await sb.auth.mfa.listFactors();
       const totp=lf&&lf.totp&&lf.totp.find(x=>x.status==='verified');
       if(totp){
-        const code=(prompt('Ange den 6-siffriga koden från din authenticator-app:')||'').trim();
-        if(!code){await sb.auth.signOut();throw new Error('Tvåfaktor krävs för att logga in');}
+        const code=(prompt(t('auth_2fa_prompt'))||'').trim();
+        if(!code){await sb.auth.signOut();throw new Error(t('auth_2fa_required'));}
         const {data:ch,error:e1}=await sb.auth.mfa.challenge({factorId:totp.id});
         if(e1){await sb.auth.signOut();throw new Error(e1.message);}
         const {error:e2}=await sb.auth.mfa.verify({factorId:totp.id,challengeId:ch.id,code:code});
-        if(e2){await sb.auth.signOut();throw new Error('Fel kod — försök igen');}
+        if(e2){await sb.auth.signOut();throw new Error(t('auth_2fa_wrong'));}
       }
-      session={email:email,autoSync:true,lastSync:null};saveSession();
+      const uid1=await sbUserId();
+      session={email:email,userId:uid1,autoSync:true,lastSync:null};saveSession();
     }
     // Aktiv session finns nu — molnet styr vad som visas
     const remote=await cloudPull();          // sträng eller null
@@ -2722,7 +3257,7 @@ async function doAuth(isReg){
     }else{
       const localBlob=localStorage.getItem(STORAGE_KEY);
       let localHasItems=false;try{const o=JSON.parse(localBlob);localHasItems=!!(o&&((o.items&&o.items.length)||(o.watch&&o.watch.length)));}catch(e){}
-      if(localHasItems && confirm('Det finns ingen data i molnet för det här kontot.\n\nOK = ladda upp din NUVARANDE lokala data till kontot.\nAvbryt = börja med en TOM samling.')){
+      if(localHasItems && confirm(t('local_has_data_confirm'))){
         await cloudPush();                                  // behåll befintlig lokal data
       }else{
         localStorage.setItem(STORAGE_KEY,JSON.stringify(freshState())); // tom samling
@@ -2734,19 +3269,19 @@ async function doAuth(isReg){
   }catch(e){if(err)err.textContent=e.message;}
 }
 document.addEventListener('change',e=>{
-  if(e.target&&e.target.id==='autoSyncCb'&&session){session.autoSync=e.target.checked;saveSession();toast('Auto-synk '+(e.target.checked?'på':'av'),'ok');}
+  if(e.target&&e.target.id==='autoSyncCb'&&session){session.autoSync=e.target.checked;saveSession();toast(t('auto_sync_toast',t(e.target.checked?'auto_sync_on':'auto_sync_off')),'ok');}
 });
 
 async function forgotPassword(){
   const sb=getSB();if(!sb){toast('Supabase ej konfigurerat','warn');return;}
   const f=$('#gateForm')||$('#authForm');
   let email=(f&&f.email?f.email.value:'')||'';
-  if(!email.trim())email=prompt('Ange din e-post så skickar vi en återställningslänk:')||'';
+  if(!email.trim())email=prompt(t('auth_forgot'))||'';
   email=email.trim().toLowerCase();if(!email)return;
   try{
     const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:shareBaseUrl()});
     if(error)throw new Error(error.message);
-    closeModal();toast('Återställningsmejl skickat till '+email,'ok');
+    closeModal();toast(t('auth_reset_sent',email),'ok');
   }catch(e){toast('Kunde inte skicka: '+e.message,'err');}
 }
 function newPasswordModal(){
@@ -2763,13 +3298,13 @@ async function setNewPassword(){
   const pw=f.password.value;if(!pw||pw.length<6){err.textContent='Minst 6 tecken';return;}
   const sb=getSB();if(!sb){err.textContent='Supabase ej konfigurerat';return;}
   try{const {error}=await sb.auth.updateUser({password:pw});if(error)throw new Error(error.message);
-    closeModal();toast('Lösenord uppdaterat','ok');rerenderCurrent();
+    closeModal();toast(t('auth_password_updated'),'ok');rerenderCurrent();
   }catch(e){err.textContent=e.message;}
 }
 async function deleteAccount(){
   if(!loggedIn())return;
-  if(!confirm('Radera ditt konto och all molndata permanent? Detta går inte att ångra.'))return;
-  if(!confirm('Helt säker? All data i molnet tas bort och du loggas ut. (Din lokala data på enheten finns kvar.)'))return;
+  if(!confirm(t('auth_delete_confirm')))return;
+  if(!confirm(t('auth_delete_confirm2')))return;
   const sb=getSB();if(!sb)return;
   try{
     const uid2=await sbUserId();
@@ -2807,19 +3342,19 @@ async function checkAdmin(){
 }
 RENDERERS.admin=function(){
   const el=$('#page-admin');
-  if(!loggedIn()){el.innerHTML='<div class="card"><div class="empty"><div class="big">'+ic('shield')+'</div><h3>Logga in först</h3><p>Användarhantering kräver att du är inloggad som admin.</p><button class="btn primary" onclick="navigate(\'settings\')">Till inställningar</button></div></div>';return;}
+  if(!loggedIn()){el.innerHTML='<div class="card"><div class="empty"><div class="big">'+ic('shield')+'</div><h3>'+t('admin_login_first')+'</h3><p>Användarhantering kräver att du är inloggad som admin.</p><button class="btn primary" onclick="navigate(\'settings\')">Till inställningar</button></div></div>';return;}
   if(!_isAdmin){el.innerHTML='<div class="card"><div class="empty"><div class="big">'+ic('shield')+'</div><h3>Ingen admin-behörighet</h3><p>Ditt konto är inte admin. Lägg till din e-post i Edge Function-secreten <b>ADMIN_EMAILS</b> och ladda om.</p></div></div>';return;}
   el.innerHTML=sectionHead('Användarhantering','<button class="btn ghost sm" onclick="adminLoadUsers()">'+ic('refresh')+'Uppdatera</button>')
     +'<div class="card"><div class="note-banner">'+ic('alert')+'<div>Dessa åtgärder gäller <b>alla</b> användares konton och kan inte ångras. <b>Banna</b> spärrar inloggning; <b>radera</b> tar bort konto + molndata permanent. Admin-konton är skyddade.</div></div>'
-    +'<div id="adminUsers"><div class="dim" style="padding:12px">Laddar användare…</div></div></div>';
+    +'<div id="adminUsers"><div class="dim" style="padding:12px">'+t('admin_loading')+'</div></div></div>';
   adminLoadUsers();
 };
 async function adminLoadUsers(){
   const box=$('#adminUsers');if(!box)return;
-  box.innerHTML='<div class="dim" style="padding:12px">Laddar användare…</div>';
+  box.innerHTML='<div class="dim" style="padding:12px">'+t('admin_loading')+'</div>';
   try{
     const j=await adminCall('list');const users=(j&&j.users)||[];
-    if(!users.length){box.innerHTML='<div class="dim" style="padding:12px">Inga användare hittades.</div>';return;}
+    if(!users.length){box.innerHTML='<div class="dim" style="padding:12px">'+t('admin_none')+'</div>';return;}
     let h='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th>E-post</th><th>Skapad</th><th>Senaste inlogg</th><th>Status</th><th></th></tr></thead><tbody>';
     users.forEach(u=>{
       const created=u.created_at?u.created_at.slice(0,10):'—';
@@ -2840,14 +3375,14 @@ async function adminLoadUsers(){
   }catch(e){box.innerHTML='<div class="loss" style="padding:12px">'+ic('alert')+' Kunde inte hämta användare: '+esc(e.message)+'<div class="dim" style="font-size:12px;margin-top:6px">Är Edge Function <b>admin-users</b> deployad och din e-post i <b>ADMIN_EMAILS</b>?</div></div>';}
 }
 async function adminSetBan(id,ban){
-  if(!confirm(ban?'Banna denna användare? De kan inte logga in förrän kontot avbannas.':'Avbanna denna användare?'))return;
-  try{await adminCall(ban?'ban':'unban',{userId:id});toast(ban?'Användare bannad':'Användare avbannad','ok');adminLoadUsers();}
+  if(!confirm(t(ban?'admin_ban_confirm':'admin_unban_confirm')))return;
+  try{await adminCall(ban?'ban':'unban',{userId:id});toast(t(ban?'admin_banned':'admin_unbanned'),'ok');adminLoadUsers();}
   catch(e){toast('Fel: '+e.message,'err');}
 }
 async function adminDeleteUser(id){
-  if(!confirm('Radera detta konto permanent? Konto + molndata tas bort och går inte att ångra.'))return;
-  if(!confirm('Helt säker? Detta kan inte ångras.'))return;
-  try{await adminCall('delete',{userId:id});toast('Användare raderad','warn');adminLoadUsers();}
+  if(!confirm(t('admin_delete_confirm')))return;
+  if(!confirm(t('admin_delete_confirm2')))return;
+  try{await adminCall('delete',{userId:id});toast(t('admin_deleted'),'warn');adminLoadUsers();}
   catch(e){toast('Fel: '+e.message,'err');}
 }
 
@@ -2857,16 +3392,16 @@ async function adminDeleteUser(id){
 async function mfaRenderBox(){
   const box=$('#mfaBox');if(!box)return;
   if(!loggedIn()){box.innerHTML='';return;}
-  box.innerHTML='<div class="dim" style="font-size:12px;padding:2px 0">Kontrollerar tvåfaktor…</div>';
+  box.innerHTML='<div class="dim" style="font-size:12px;padding:2px 0">'+t('mfa_checking')+'</div>';
   let f={totp:[]};
   try{const {data,error}=await getSB().auth.mfa.listFactors();if(error)throw error;f=data||{totp:[]};}
-  catch(e){box.innerHTML='<div class="dim" style="font-size:12px">Kunde inte läsa 2FA-status.</div>';return;}
+  catch(e){box.innerHTML='<div class="dim" style="font-size:12px">'+t('mfa_error')+'</div>';return;}
   const v=(f.totp||[]).find(x=>x.status==='verified');
   if(v){
-    box.innerHTML='<span class="pill up">'+ic('check')+' Tvåfaktor aktiv</span> '
+    box.innerHTML='<span class="pill up">'+ic('check')+' '+t('mfa_active')+'</span> '
       +'<button class="btn ghost sm" onclick="mfaDisable(\''+v.id+'\')">'+ic('x')+'Stäng av 2FA</button>';
   }else{
-    box.innerHTML='<button class="btn ghost sm" onclick="mfaEnroll()">'+ic('shield')+'Aktivera tvåfaktor (authenticator)</button>'
+    box.innerHTML='<button class="btn ghost sm" onclick="mfaEnroll()">'+ic('shield')+t('mfa_enable')+'</button>'
       +'<div class="dim" style="font-size:11px;margin-top:4px">Engångskod från t.ex. Google Authenticator, Microsoft Authenticator eller Authy. Krävs sedan vid varje inloggning.</div>';
   }
 }
@@ -2891,19 +3426,19 @@ async function mfaEnroll(){
 async function mfaVerifyEnroll(fid){
   const sb=getSB();const el=$('#mfaErr');if(el)el.textContent='';
   const code=(($('#mfaCode')&&$('#mfaCode').value)||'').trim();
-  if(!code){if(el)el.textContent='Ange koden från appen';return;}
+  if(!code){if(el)el.textContent=t('mfa_enter_code');return;}
   try{
     const {data:ch,error:e1}=await sb.auth.mfa.challenge({factorId:fid});
     if(e1)throw new Error(e1.message);
     const {error:e2}=await sb.auth.mfa.verify({factorId:fid,challengeId:ch.id,code:code});
     if(e2)throw new Error('Fel kod — försök igen');
-    closeModal();toast('Tvåfaktor aktiverat','ok');mfaRenderBox();
+    closeModal();toast(t('mfa_activated'),'ok');mfaRenderBox();
   }catch(e){if(el)el.textContent=e.message;else toast(e.message,'err');}
 }
 async function mfaDisable(fid){
-  if(!confirm('Stänga av tvåfaktor? Kontot skyddas då bara av lösenord.'))return;
+  if(!confirm(t('mfa_disable_confirm')))return;
   const sb=getSB();
-  try{const {error}=await sb.auth.mfa.unenroll({factorId:fid});if(error)throw new Error(error.message);toast('Tvåfaktor avstängt','warn');mfaRenderBox();}
+  try{const {error}=await sb.auth.mfa.unenroll({factorId:fid});if(error)throw new Error(error.message);toast(t('mfa_disabled'),'warn');mfaRenderBox();}
   catch(e){toast('Fel: '+e.message,'err');}
 }
 
@@ -2969,10 +3504,10 @@ function bestSiteForCurrency(currency){
 async function triggerAutoFetch(kind,id){
   const obj=findObj(kind,id);if(!obj)return;
   const btn=$('#autoFetchBtn');
-  if(btn){btn.disabled=true;btn.innerHTML=ic('refresh')+' Hämtar…';}
+  if(btn){btn.disabled=true;btn.innerHTML=ic('refresh')+' '+t('item_fetching');}
   const result=await autoFetchPrices(obj);
-  if(btn){btn.disabled=false;btn.innerHTML=ic('refresh')+' Hämta automatiska priser';}
-  if(!result){toast('Inget automatiskt pris hittades — lägg till URL-länk manuellt per sajt','warn');return;}
+  if(btn){btn.disabled=false;btn.innerHTML=ic('refresh')+' '+t('item_fetch_prices');}
+  if(!result){toast(t('item_no_auto_price'),'warn');return;}
   let filled=0;
   result.prices.forEach(rp=>{
     const site=bestSiteForCurrency(rp.currency);if(!site)return;
@@ -2985,8 +3520,8 @@ async function triggerAutoFetch(kind,id){
     badge.innerHTML=ic('check')+' '+esc(rp.label);
     filled++;
   });
-  if(filled)toast(filled+' pris hämtade — granska och justera, sedan Spara','ok');
-  else toast('Inga konfigurerade sajter matchar valutan i hämtad data','warn');
+  if(filled)toast(t('item_prices_fetched',filled),'ok');
+  else toast(t('item_no_currency_match'),'warn');
 }
 
 function applyAutoResultToItem(item,result){
@@ -3018,19 +3553,19 @@ async function updateAllPrices(){
   const all=[...state.items,...state.watch].filter(x=>autoCats.includes((x.cat||'').toLowerCase()));
   if(!all.length){toast('Inga MTG- eller Pokémon-objekt att uppdatera','warn');return;}
   let done=0,changed=0;
-  toast('Startar prisfetchning för '+all.length+' objekt…','ok');
+  toast(t('fetch_all_start',all.length),'ok');
   for(const item of all){
     item.prices=item.prices||[];
     const result=await autoFetchPrices(item);
     if(result)changed+=applyAutoResultToItem(item,result);
     done++;
     // visa progress var 5:e objekt
-    if(done%5===0&&done<all.length)toast('Hämtar '+done+'/'+all.length+'…','ok');
+    if(done%5===0&&done<all.length)toast(t('fetch_all_progress',done,done,all.length),'ok');
     // paus mellan anropen — Scryfall begär 50–100 ms och pokemontcg.io rate-limitar hårt utan API-nyckel
     if(done<all.length)await new Promise(rs=>setTimeout(rs,150));
   }
   save();rerenderCurrent();
-  toast(changed?changed+' priser uppdaterade automatiskt ('+done+' objekt genomgångna)':'Alla priser kontrollerade — inga ändringar','ok');
+  toast(changed?changed+' priser uppdaterade automatiskt ('+done+' objekt genomgångna)':t('fetch_all_no_change'),'ok');
   checkPriceAlerts();
 }
 
@@ -3055,31 +3590,31 @@ function checkPriceAlerts(){
     });
   }
   // In-app varningsmodal
-  let html='<div class="modal-head"><h3>'+ic('target')+' Prisnål! ('+hits.length+')</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
+  let html='<div class="modal-head"><h3>'+ic('target')+' '+t('alert_title')+' ('+hits.length+')</h3><button class="x" onclick="closeModal()">'+ic('x')+'</button></div>'
     +'<div class="modal-body">';
   hits.forEach(h=>{
     const site=siteById(h.bb.entry.siteId);
     html+='<div class="card" style="padding:14px;margin-bottom:10px;border-color:var(--primary);box-shadow:0 0 24px -10px var(--primary)">'
       +'<div class="nm" style="margin-bottom:10px">'+ic('fire')+' '+esc(h.w.name)+'</div>'
       +'<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">'
-      +'<div><div class="dim" style="font-size:11px">BÄSTA PRIS NU</div><div class="num gain" style="font-size:20px">'+fmtBase(h.bb.totalBase)+'</div>'+(site?'<div class="faint" style="font-size:11px">@ '+esc(site.name)+'</div>':'')+'</div>'
-      +'<div><div class="dim" style="font-size:11px">DITT MÅLPRIS</div><div class="num" style="font-size:20px">'+fmt(h.w.targetPrice,h.w.targetCurrency)+'</div></div>'
-      +'<div><div class="dim" style="font-size:11px">UNDER MÅL</div><div class="num gain" style="font-size:20px">'+fmtBase(h.diff)+' ('+h.pct+'%)</div></div>'
+      +'<div><div class="dim" style="font-size:11px">'+t('alert_best_now')+'</div><div class="num gain" style="font-size:20px">'+fmtBase(h.bb.totalBase)+'</div>'+(site?'<div class="faint" style="font-size:11px">@ '+esc(site.name)+'</div>':'')+'</div>'
+      +'<div><div class="dim" style="font-size:11px">'+t('alert_target')+'</div><div class="num" style="font-size:20px">'+fmt(h.w.targetPrice,h.w.targetCurrency)+'</div></div>'
+      +'<div><div class="dim" style="font-size:11px">'+t('alert_under')+'</div><div class="num gain" style="font-size:20px">'+fmtBase(h.diff)+' ('+h.pct+'%)</div></div>'
       +'</div>'
-      +(h.bb.entry.url?'<div style="margin-top:12px"><a class="btn primary sm" href="'+esc(h.bb.entry.url)+'" target="_blank" rel="noopener">'+ic('external')+'Köp nu</a></div>':'')
+      +(h.bb.entry.url?'<div style="margin-top:12px"><a class="btn primary sm" href="'+esc(h.bb.entry.url)+'" target="_blank" rel="noopener">'+ic('external')+t('alert_buy_now')+'</a></div>':'')
       +'</div>';
   });
   html+='</div><div class="modal-foot">'
-    +'<button class="btn ghost" onclick="navigate(\'watchlist\');closeModal()">'+ic('eye')+' Till köplistan</button>'
-    +'<button class="btn primary" onclick="closeModal()">Stäng</button>'
+    +'<button class="btn ghost" onclick="navigate(\'watchlist\');closeModal()">'+ic('eye')+' '+t('alert_to_watchlist')+'</button>'
+    +'<button class="btn primary" onclick="closeModal()">'+t('alert_close')+'</button>'
     +'</div>';
   openModal(html,true);
 }
 async function requestNotifPermission(){
-  if(typeof Notification==='undefined'){toast('Webbläsaren stödjer inte notiser','warn');return;}
-  if(Notification.permission==='granted'){toast('Notiser är redan tillåtna','ok');return;}
+  if(typeof Notification==='undefined'){toast(t('notif_not_supported'),'warn');return;}
+  if(Notification.permission==='granted'){toast(t('notif_already'),'ok');return;}
   const p=await Notification.requestPermission();
-  toast(p==='granted'?'Prisnotiser aktiverade!':'Notiser nekades — prisnålar syns ändå i appen','ok');
+  toast(p==='granted'?t('notif_already'):t('notif_denied'),'ok');
 }
 
 /* ============================================================
@@ -3087,20 +3622,27 @@ async function requestNotifPermission(){
    ============================================================ */
 async function cloudPullPublic(userId){
   const sb=getSB();if(!sb)return null;
-  const {data,error}=await sb.from('collections').select('data').eq('user_id',userId).eq('public',true).maybeSingle();
+  const {data,error}=await sb.from('collections').select('public_data').eq('user_id',userId).eq('public',true).maybeSingle();
   if(error||!data)return null;
-  return data.data;
+  return data.public_data;
 }
 async function togglePublicCollection(isPublic){
-  state.settings.publicCollection=isPublic;
+  if(isPublic){
+    const withPrices=confirm(t('share_prices_confirm'));
+    state.settings.publicCollection=true;
+    state.settings.publicPrices=withPrices;
+  }else{
+    state.settings.publicCollection=false;
+    state.settings.publicPrices=false;
+  }
   save();
   try{await cloudPush();}catch(e){}
   rerenderCurrent();
-  toast(isPublic?'Samlingen är nu publik — dela länken nedan':'Samlingen är nu privat','ok');
+  toast(t(isPublic?'share_now_public':'share_now_private'),'ok');
 }
 function shareBaseUrl(){return (location.origin+location.pathname.replace(/\/index\.html?$/i,'')).replace(/\/$/,'')+'/';}
 function shareLink(){const uid=session&&session.userId;return uid?shareBaseUrl()+'?view='+uid:'';}
-function copyShareLink(){const l=shareLink();if(!l){toast('Kunde inte hämta din ID — logga ut och in igen','err');return;}navigator.clipboard.writeText(l).then(()=>toast('Länk kopierad!','ok')).catch(()=>toast('Kunde inte kopiera — '+l,'warn'));}
+function copyShareLink(){const l=shareLink();if(!l){toast(t('share_no_id'),'err');return;}navigator.clipboard.writeText(l).then(()=>toast(t('share_copied'),'ok')).catch(()=>toast(t('share_copy_failed',l),'warn'));}
 
 let _sharedState=null;
 let _sharedUserId=null;
@@ -3136,17 +3678,18 @@ RENDERERS.shared=function(){
   const sBase=sSet.baseCurrency||'SEK';
   const sConv=(v,from)=>{if(v==null||isNaN(v))return null;from=from||sBase;if(from===sBase)return v;const rf=sRates[from],rt=sRates[sBase];return (rf&&rt)?v*rf/rt:null;};
   const sFmt=v=>{const sym=(typeof CURRENCY_SYMBOL!=='undefined'&&CURRENCY_SYMBOL[sBase])||sBase;const dec=sBase==='JPY'?0:(Math.abs(v)>=1000?0:2);const n=Number(v||0).toLocaleString('sv-SE',{minimumFractionDigits:dec,maximumFractionDigits:dec});return sBase==='SEK'?n+'\u00A0'+sym:sym+'\u00A0'+n;};
+  const showPrices=!!(sSet.publicPrices);
   const bestPrice=it=>{let best=null;(it.prices||[]).forEach(p=>{if(p.price==null)return;const tot=sConv((p.price||0)+(p.shipping||0),p.currency);if(tot==null)return;if(!best||tot<best.tot)best={tot:tot,siteId:p.siteId};});return best;};
   $('#pageTitle').textContent='Delad samling';
   $('#pageSub').textContent='Skrivskyddad vy — '+items.length+' objekt';
   const catName=id=>{const c=cats.find(x=>x.id===id);return c?c.name:id||'';};
   const siteName=id=>{const s=sSites.find(x=>x.id===id);return s?s.name:'';};
-  let html='<div class="note-banner" style="margin-bottom:16px">'+ic('eye')+'<div>Du ser en annans publika samling. Skrivskyddad — inga ändringar sparas.</div></div>';
-  if(!items.length){html+='<div class="card"><div class="empty"><div class="big">'+ic('layers')+'</div><h3>Samlingen är tom</h3></div></div>';el.innerHTML=html;return;}
-  html+='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th></th><th>Namn</th><th>Set</th><th>Kategori</th><th>Skick</th><th style="text-align:right">Antal</th><th style="text-align:right">Bästa pris</th></tr></thead><tbody>';
+  let html='<div class="note-banner" style="margin-bottom:16px">'+ic('eye')+'<div>'+t('share_banner')+'</div></div>';
+  if(!items.length){html+='<div class="card"><div class="empty"><div class="big">'+ic('layers')+'</div><h3>'+t('share_empty')+'</h3></div></div>';el.innerHTML=html;return;}
+  html+='<div class="table-wrap"><div class="table-scroll"><table><thead><tr><th></th><th>'+t('share_col_name')+'</th><th>'+t('share_col_set')+'</th><th>'+t('share_col_cat')+'</th><th>'+t('share_col_cond')+'</th><th style="text-align:right">'+t('share_col_qty')+'</th>'+(showPrices?'<th style="text-align:right">'+t('share_col_price')+'</th>':'')+'</tr></thead><tbody>';
   items.forEach(it=>{
-    const img=it.image||'';
-    const bp=bestPrice(it);
+    const img=(it.imgPref==='own'&&it.photos&&it.photos.length)?it.photos[0]:(it.image||'');
+    const bp=showPrices?bestPrice(it):null;
     html+='<tr>'
       +'<td style="width:48px">'+(img?'<img src="'+esc(img)+'" style="width:40px;height:auto;border-radius:4px;vertical-align:middle" alt="">':'')+'</td>'
       +'<td><div class="nm">'+esc(it.name||'')+'</div></td>'
@@ -3154,7 +3697,7 @@ RENDERERS.shared=function(){
       +'<td><div class="dim">'+esc(catName(it.cat))+'</div></td>'
       +'<td><div class="dim">'+esc(it.condition||'—')+'</div></td>'
       +'<td style="text-align:right"><div class="num">'+((it.qty||1)>1?'×'+(it.qty||1):'1')+'</div></td>'
-      +'<td style="text-align:right">'+(bp?'<div class="num">'+sFmt(bp.tot)+'</div>'+(siteName(bp.siteId)?'<div class="faint" style="font-size:10.5px">@ '+esc(siteName(bp.siteId))+'</div>':''):'<div class="faint">—</div>')+'</td>'
+      +(showPrices?'<td style="text-align:right">'+(bp?'<div class="num">'+sFmt(bp.tot)+'</div>'+(siteName(bp.siteId)?'<div class="faint" style="font-size:10.5px">@ '+esc(siteName(bp.siteId))+'</div>':''):'<div class="faint">—</div>')+'</td>':'')
       +'</tr>';
   });
   html+='</tbody></table></div></div>';
@@ -3304,7 +3847,7 @@ function updateExtraFields(cat){
   const title=$('#extraTitle');
   const html=extraFieldsFor(cat);
   if(section)section.style.display=html?'block':'none';
-  if(title)title.textContent='Extrafält — '+(cat==='fnk'?'Funko Pop':'Sportkort');
+  if(title)title.textContent=t('extra_fields',(cat==='fnk'?'Funko Pop':'Sportkort'));
   box.innerHTML=html;
   updateCatalogHint();
 }
@@ -3317,11 +3860,11 @@ function updateCatalogHint(){
   const p=currentProvider();
   if(p){
     if(p.manual)
-      h.innerHTML=ic('alert')+'Ingen automatisk katalog för <b style="color:var(--text-dim)">'+esc(p.name.split(' · ')[0])+'</b> — fyll i namn manuellt. Se extrafält nedan.';
+      h.innerHTML=ic('alert')+t('cat_no_catalog',esc(p.name.split(' · ')[0]));
     else
-      h.innerHTML=ic('spark')+'Sökning aktiv: <b style="color:var(--text-dim)">'+esc(p.name)+'</b>'+(p.multiLang?' · flerspråkig':'');
+      h.innerHTML=ic('spark')+t('cat_searching_active',esc(p.name))+(p.multiLang?' '+t('cat_multilang'):'');
     if(lang)lang.parentElement.style.opacity=p.multiLang?'1':'.5';
-  }else{h.innerHTML=ic('alert')+'Ingen katalog för denna kategori än — fyll i namn manuellt.';}
+  }else{h.innerHTML=ic('alert')+t('cat_no_cat');}
 }
 /* Box-/förseglat-intention: nyckelord i sökningen ELLER en förseglad produkttyp vald i formuläret.
    Då vill användaren lägga till en box (ETB/Booster Box osv.), inte ett enskilt kort. */
@@ -3342,7 +3885,7 @@ async function runCatalogSearch(q){
   const p=currentProvider();const box=$('#taResults');if(!p||!box)return;
   const lang=$('#taLang')?$('#taLang').value:'en';
   const reqId=++catalogReq;
-  box.classList.add('open');box.innerHTML='<div class="ta-msg">'+ic('refresh')+' Söker…</div>';
+  box.classList.add('open');box.innerHTML='<div class="ta-msg">'+ic('refresh')+' '+t('cat_searching')+'</div>';
   try{
     const boxIntent=boxIntentFor(q);
     const setQ=boxIntent?stripBoxWords(q):q;   // släng box-orden så set-namnet matchar (t.ex. "151 elite trainer box" → "151")
@@ -3368,10 +3911,10 @@ async function runCatalogSearch(q){
 }
 function renderCatalogResults(){
   const box=$('#taResults');if(!box)return;
-  if(!catalogResults.length){box.innerHTML='<div class="ta-msg">Inga träffar.</div>';return;}
+  if(!catalogResults.length){box.innerHTML='<div class="ta-msg">'+t('cat_no_hits')+'</div>';return;}
   box.innerHTML=catalogResults.map((r,i)=>{
     const img=r.image?'<img src="'+esc(r.image)+'" alt="" loading="lazy" onerror="imgFallback(this,\'ta-ph\',\'box\')">':'<div class="ta-ph">'+ic(r.kind==='set'?'layers':'box')+'</div>';
-    const sub=r.kind==='set'?(r.sub?r.sub+' · klicka för boxar':'Klicka för boxar (ETB, Booster Box…)'):(r.set||'');
+    const sub=r.kind==='set'?(r.sub?r.sub+' '+t('cat_click_boxes'):t('cat_boxes_hint')):(r.set||'');
     return '<div class="ta-item" onmousedown="event.preventDefault()" onclick="pickCatalog('+i+')">'+img
       +'<div style="flex:1;min-width:0"><div class="ta-name">'+esc(r.name)+'</div>'+(sub?'<div class="ta-sub">'+esc(sub)+'</div>':'')+'</div>'
       +'<span class="ta-badge'+(r.kind==='set'?' set':'')+'">'+(r.kind==='set'?'SET':'KORT')+'</span></div>';
@@ -3398,7 +3941,7 @@ async function pickCatalog(i){
   }else{
     closeCatalogResults();
   }
-  toast('Hämtat från '+(CATALOG[f.cat.value]||currentProvider()||{name:'katalog'}).name.split(' · ')[0],'ok');
+  toast(t('cat_fetched_from',(CATALOG[f.cat.value]||currentProvider()||{name:'katalog'}).name.split(' · ')[0]),'ok');
 }
 let _sealedCtx=null;
 function showSealedProductSuggestions(setName,setImage,form){
