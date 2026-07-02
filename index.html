@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.15 (2026-06-25) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.17 (2026-07-02) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -700,7 +700,7 @@ const LANG={
     scan_img_error:'Kunde inte läsa bilden (format stöds ej?)',
     scan_confidence_high:'Hög säkerhet',scan_confidence_low:'Låg säkerhet — kontrollera',
     scan_confidence_med:'Medel säkerhet',
-    scan_note:t('scan_note'),
+    scan_note:'Text inläst via OCR. Kontrollera och justera namn/kategori. Välj rätt träff nedan.',
     scan_search_hint:'Söker i katalogen — välj rätt träff nedan, eller justera fälten.',
     /* Katalog-autocomplete */
     cat_no_catalog:'Ingen automatisk katalog för <b style="color:var(--text-dim)">%s</b> — fyll i namn manuellt. Se extrafält nedan.',
@@ -1104,8 +1104,8 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.15';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
-const APP_VERSION_DATE='2026-06-25';
+const APP_VERSION='1.6.17';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION_DATE='2026-07-02';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
 let state=null;
