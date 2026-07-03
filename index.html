@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CardTrack v1.6.19 (2026-07-03) — versionen visas även i sidofoten och under Inställningar -->
+<!-- CardTrack v1.6.20 (2026-07-03) — versionen visas även i sidofoten och under Inställningar -->
 <html lang="sv" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -1204,7 +1204,7 @@ const STORAGE_KEY='cardtrack.v1';
 /* Inbäddad Supabase-anslutning så inloggning fungerar på ALLA enheter (inte bara den
    webbläsare som råkar ha konfigurerat den). Anon/publishable-nyckeln är PUBLIK och säker
    i frontend — RLS skyddar datan. Fyll i nyckeln nedan för att aktivera för alla. */
-const APP_VERSION='1.6.19';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
+const APP_VERSION='1.6.20';            // ← bumpa vid VARJE leverans; syns i sidofot, Inställningar och HTML-kommentaren överst
 const APP_VERSION_DATE='2026-07-03';
 const EMBED_SUPABASE_URL='https://tqzvouiqnuorgokpwyvs.supabase.co';
 const EMBED_SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxenZvdWlxbnVvcmdva3B3eXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTI1OTUsImV4cCI6MjA5NjAyODU5NX0.QBo083NvrSsFcsxEWpAmvWrhqtzmIF19Ns4w17lJuh0';
@@ -1478,7 +1478,7 @@ function navigate(page){
   $$('.page').forEach(p=>p.classList.remove('active'));
   const sec=$('#page-'+page); if(sec)sec.classList.add('active');
   $$('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.page===page));
-  const meta=NAV.find(n=>n.id===page)||{};
+  const meta=NAV().find(n=>n.id===page)||{};
   $('#pageTitle').textContent=meta.title||''; $('#pageSub').textContent=meta.sub||'';
   if(RENDERERS[page])RENDERERS[page]();
   if(window.innerWidth<=820)toggleSidebar(false);
